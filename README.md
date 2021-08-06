@@ -26,5 +26,6 @@ As more and more scientists begin to incorporate Earth observation imagery into 
 
 ### Want to contribute?
 Feedback, feature requests, extensions, modifications, and new tools welcome! 
-Submit pull requests [here](https://github.com/valpasq/ee-rs-tools/pulls) or contact Dr. Valerie Pasquarella (valerie.pasquarella@gmail.com).
+
+Open issues [here](https://github.com/valpasq/ee-rs-tools/issues), submit pull requests [here](https://github.com/valpasq/ee-rs-tools/pulls), or just add to the [discussion](https://github.com/valpasq/ee-rs-tools/discussions).
 
