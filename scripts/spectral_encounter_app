@@ -1,6 +1,6 @@
 // SPECTRAL ENCOUNTER APP 🌈👻
 // 
-// date: 2021-08-03
+// date: 2021-08-06
 // author: Valerie J. Pasquarella 
 //
 // -----------------------------------------------------------------------------
@@ -34,8 +34,8 @@ if (SENSOR == 'S2') {
       'B8A - NIR (narrow)': 'B8A',
       'B9 - Water vapor': 'B9',
       'B10 - Cirrus': 'B10',
-      'B11 - SWIR': 'B11',
-      'B12 - SWIR': 'B12'};
+      'B11 - SWIR 1': 'B11',
+      'B12 - SWIR 2': 'B12'};
 
   var RED_DEFAULT = 'B4 - Red';
   var GREEN_DEFAULT = 'B3 - Green';
@@ -62,8 +62,8 @@ if (SENSOR == 'S2') {
       'B4 - Red': 'B4',
       'B5 - NIR': 'B5',
       'B9 - Cirrus': 'B9',
-      'B6 - SWIR': 'B6',
-      'B7 - SWIR': 'B7',};
+      'B6 - SWIR 1': 'B6',
+      'B7 - SWIR 2': 'B7',};
   
   var RED_DEFAULT = 'B4 - Red';
   var GREEN_DEFAULT = 'B3 - Green';
@@ -295,7 +295,7 @@ function paletterie() {
 }
 
 // -----------------------------------------------------------------------------
-
+// 
 // Set up instructions panel.
 
 var instruc_label = label_factory(
