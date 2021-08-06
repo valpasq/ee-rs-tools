@@ -1,4 +1,6 @@
 # ee-rs-tools
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5167544.svg)](https://doi.org/10.5281/zenodo.5167544)
+
 This repository hosts UI tools for exploring remote sensing datasets in [Google Earth Engine](https://earthengine.google.com/).
 
 Earth Engine users can add this repository to the Code Editor using the following link: [https://code.earthengine.google.com/?accept_repo=users/valeriepasquarella/ee-rs-tools](
