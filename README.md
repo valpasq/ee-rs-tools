@@ -1,8 +1,12 @@
 # ee-rs-tools
 This repository hosts UI tools for exploring remote sensing datasets in [Google Earth Engine](https://earthengine.google.com/).
 
+Earth Engine users can add this repository to the Code Editor using the following link: [https://code.earthengine.google.com/?accept_repo=users/valeriepasquarella/ee-rs-tools](
+https://code.earthengine.google.com/?accept_repo=users/valeriepasquarella/ee-rs-tools
+).
+
 ## Spectral Encounter
-The *Spectral Encounter* apps are designed to facilitate visualization of spectral properties of optical remote sensing imagery. The app script `spectal/spectral_encounter_app` can be used to generate both [Sentinel-2](https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2) and [Landsat 8](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC08_C01_T1_TOA) versions of the tool.
+The *Spectral Encounter* apps are designed to facilitate visualization of spectral properties of optical remote sensing imagery. The app script `spectal/spectral_encounter_app` can be used to generate both [Sentinel-2](https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2) and [Landsat 8](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC08_C01_T1_RT_TOA) versions of the tool.
 
 * [Sentinel-2 Spectral Encounter app](https://valeriepasquarella.users.earthengine.app/view/spectral-encounter-s2)
 * [Landsat 8 Spectral Encounter app](https://valeriepasquarella.users.earthengine.app/view/spectral-encounter-l8)
