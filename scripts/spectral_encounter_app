@@ -1,0 +1,457 @@
+// SPECTRAL ENCOUNTER APP 🌈👻
+// 
+// date: 2021-08-03
+// author: Valerie J. Pasquarella 
+//
+// -----------------------------------------------------------------------------
+
+// 'L8' or 'S2'
+var SENSOR = 'S2';
+
+// Get sensor-specific parameters
+
+if (SENSOR == 'S2') {
+  var SENSOR_NAME = 'Sentinel-2';
+  var COLLECTION = ee.ImageCollection("COPERNICUS/S2");
+  
+  // Time step in days.
+  var HISTORY = 5;
+  
+  var WAVELENGTHS = [
+      0.443, 0.490, 0.560, 0.665, 0.705,  
+      0.740, 0.783, 0.842, 0.865, 0.945,
+      1.375, 1.610, 2.190];
+
+  var BAND_DICT = {
+      'B1 - Coastal aerosol': 'B1',
+      'B2 - Blue': 'B2',
+      'B3 - Green': 'B3',
+      'B4 - Red': 'B4',
+      'B5 - Red edge 1': 'B5',
+      'B6 - Red edge 2': 'B6',
+      'B7 - Red edge 3': 'B7',
+      'B8 - NIR': 'B8',
+      'B8A - NIR (narrow)': 'B8A',
+      'B9 - Water vapor': 'B9',
+      'B10 - Cirrus': 'B10',
+      'B11 - SWIR': 'B11',
+      'B12 - SWIR': 'B12'};
+
+  var RED_DEFAULT = 'B4 - Red';
+  var GREEN_DEFAULT = 'B3 - Green';
+  var BLUE_DEFAULT = 'B2 - Blue';
+  
+  var SCALE = 10000;
+  
+} else if (SENSOR == 'L8') {
+  var SENSOR_NAME = 'Landsat 8';
+  var COLLECTION = ee.ImageCollection("LANDSAT/LC08/C01/T1_RT_TOA")
+      .filterMetadata('WRS_ROW', 'less_than', 184);
+  
+  // Time step in days
+  var HISTORY = 16;
+  
+  var WAVELENGTHS = [
+      0.443, 0.450, 0.525, 0.630, 0.845, 1.375, 
+      1.560, 2.100];
+  
+  var BAND_DICT = {
+      'B1 - Coastal aerosol': 'B1',
+      'B2 - Blue': 'B2',
+      'B3 - Green': 'B3',
+      'B4 - Red': 'B4',
+      'B5 - NIR': 'B5',
+      'B9 - Cirrus': 'B9',
+      'B6 - SWIR': 'B6',
+      'B7 - SWIR': 'B7',};
+  
+  var RED_DEFAULT = 'B4 - Red';
+  var GREEN_DEFAULT = 'B3 - Green';
+  var BLUE_DEFAULT = 'B2 - Blue';
+  
+  var SCALE = 1;
+}
+    
+var BAND_DICT_KEYS = Object.keys(BAND_DICT);
+var BAND_DICT_VALUES = [];
+for (var i = 0; i < BAND_DICT_KEYS.length; ++i) {
+  BAND_DICT_VALUES.push(BAND_DICT[BAND_DICT_KEYS[i]]);
+}
+
+// Panels' color palette
+var COLORS = {
+    'transparent': 'rgba(255, 255, 255, 0)', 
+    'faded': 'rgba(255, 255, 255, 0.75)',
+    'dark': 'rgba(0, 0, 0, 0.75)'};
+
+// Label and text styling
+var LABEL_STYLE = {
+    fontFamily: 'sans-serif',
+    fontWeight: 'bold',
+    color: 'white',
+    backgroundColor: COLORS.transparent};
+
+var TEXT_STYLE = {
+    fontFamily: 'sans-serif',
+    color: 'white',
+    backgroundColor: COLORS.transparent};
+
+// Chart and point coloring.
+var GREY_POINT = 0.3;
+var SCALE_MIN = 0.2;
+var SCALE_MAX = 0.8;
+
+// -----------------------------------------------------------------------------
+//
+// Initialize panels
+
+var config_panel = ui.Panel({
+    style: {
+      width: '450px',
+      position: 'top-left',
+      backgroundColor: COLORS.dark}
+  });
+
+var chart_panel = ui.Panel({
+    style: {
+      width: '500px',
+      position: 'bottom-left',
+      backgroundColor: COLORS.dark
+    }
+  });
+
+var instruc_panel = ui.Panel({
+    style: {
+      width: '400px',
+      position: 'bottom-left',
+      backgroundColor: COLORS.dark}
+  });
+
+// Global UI variables.
+var samples = [];
+var colors_list = [];
+var lock_map = false;
+
+// Creates a visualization parameter dictionary.
+function make_viz_params() {
+  var red_band = BAND_DICT[red_select.getValue()];
+  var green_band = BAND_DICT[green_select.getValue()];
+  var blue_band = BAND_DICT[blue_select.getValue()];
+  
+  var rgb_list = [red_band, green_band, blue_band];
+  
+  var red_max = red_slider.getValue();
+  var green_max = green_slider.getValue();
+  var blue_max = blue_slider.getValue();
+  
+  var rgb_max = [red_max, green_max, blue_max];
+  
+  return {bands: rgb_list, min: 0, max: rgb_max};
+}
+
+// Updates image when date is changed.
+function update_image(target_date) {
+  if (lock_map) return;
+  samples = [];
+  colors_list = [];
+  
+  Map.remove(chart_panel);
+  
+  for (var i = Map.layers().length() - 1; i >= 0; i--) {
+    Map.remove(Map.layers().get(i));
+  }
+  
+  var start_date = ee.Date(target_date).advance(-1 * HISTORY, 'day');
+  var image = ee.Image(COLLECTION
+      .filterDate(start_date, target_date)
+      .map(function(img) {
+            var time = img.getNumber('system:time_start');
+            return img.addBands(ee.Image(time.toUint32())
+                .rename('time_start'));
+           })
+      .qualityMosaic('time_start')
+      .select(BAND_DICT_VALUES)
+      .divide(SCALE));
+      
+  var new_layer = ui.Map.Layer(image, make_viz_params(), 'RGB image');
+  Map.layers().set(0, new_layer);
+}
+
+// Updates visualization parameters.
+function update_viz() {
+  if (lock_map) return;
+  
+  var image = Map.layers().get(0).getEeObject();
+  
+  var new_layer = ui.Map.Layer(image, make_viz_params(), 'RGB image');
+  Map.layers().set(0, new_layer);
+}
+
+// Makes labels.
+function label_factory(label) {
+  return ui.Label({
+      value: label,
+      style: LABEL_STYLE
+  });
+}
+
+// Makes pull-downs.
+function select_factory(value) {
+  return ui.Select({
+      value: value,
+      items: BAND_DICT_KEYS,
+      style: {
+          stretch: 'horizontal', 
+          width: '150px'},
+      onChange: update_viz});
+}
+
+// Function to make sliders
+function slider_factory() {
+  return ui.Slider({
+      min: 0,
+      max: 1.0,
+      value: 0.4,
+      step: 0.05,
+      style: {
+          stretch: 'horizontal',
+          backgroundColor: COLORS.transparent,
+          fontFamily: 'sans-serif',
+          color: 'white'},
+      onChange: update_viz});
+}
+
+// Generates panels.
+function panel_factory(widget_list) {
+  return ui.Panel(
+      widget_list,
+      ui.Panel.Layout.Flow('horizontal'), {
+          stretch: 'horizontal',
+          backgroundColor: COLORS.transparent
+      });
+}
+
+// Converts a value on [0, inf) to a string hex code. 
+function prop_to_hex(x) {
+  x = Math.floor(x * 256);
+  if (x > 255) x = 255;
+  var x_hex = x.toString(16);
+  return ((x_hex.length == 1) ? '0' : '') + x_hex;
+}
+
+// Custom mid-tones palette for points/charting
+function paletterie() {
+  var col = [Math.random(), Math.random(), Math.random()];
+  
+  var grey_axis = [0.57735026919, 0.57735026919, 0.57735026919];
+  var col_mag = col[0] * grey_axis[0] 
+      + col[1] * grey_axis[1] 
+      + col[2] * grey_axis[2];
+  var grey_point = [
+      grey_axis[0] * col_mag,
+      grey_axis[1] * col_mag,
+      grey_axis[2] * col_mag];
+
+  var grey_vec = [
+      col[0] - grey_point[0],
+      col[1] - grey_point[1],
+      col[2] - grey_point[2]];
+  var mag = Math.sqrt(grey_vec[0] * grey_vec[0]
+      + grey_vec[1] * grey_vec[1]
+      + grey_vec[2] * grey_vec[2]);
+  var grey_norm = [grey_vec[0] / mag,
+      grey_vec[1] / mag,
+      grey_vec[2] / mag];
+      
+  var scale = SCALE_MIN + (SCALE_MAX - SCALE_MIN) * Math.random();
+      
+  var grey_val = [GREY_POINT, GREY_POINT, GREY_POINT];
+  grey_val = [grey_val[0] + grey_norm[0] * scale,
+      grey_val[0] + grey_norm[1] * scale,
+      grey_val[0] + grey_norm[2] * scale];
+  
+  if (grey_val[0] < 0) {
+    grey_val[0] = 0;
+  } else if (grey_val[0] > 1) {
+    grey_val[0] = 1;
+  }
+  
+  if (grey_val[1] < 0) {
+    grey_val[1] = 0;
+  } else if (grey_val[1] > 1) {
+    grey_val[1] = 1;
+  }
+  
+  if (grey_val[2] < 0) {
+    grey_val[2] = 0;
+  } else if (grey_val[2] > 1) {
+    grey_val[2] = 1;
+  }
+  
+  return '#' 
+      + prop_to_hex(grey_val[0]) 
+      + prop_to_hex(grey_val[1]) 
+      + prop_to_hex(grey_val[2]);
+}
+
+// -----------------------------------------------------------------------------
+
+// Set up instructions panel.
+
+var instruc_label = label_factory(
+    'Explore ' + SENSOR_NAME + ' spectral signatures...');
+
+var instruc_1 = ui.Label({
+    value: '🛰 This app displays a ' + HISTORY + '-day history of '  
+        + SENSOR_NAME + ' image acqusitions.',
+    style: TEXT_STYLE});
+
+var instruc_2 = ui.Label({
+    value: '📅 Adjust the target date using the date selector.',
+    style: TEXT_STYLE});
+
+var instruc_3 = ui.Label({
+    value: '🌈 Select the bands to use in the RGB composite and '
+        + 'their stretches using the pulldowns and sliders.',
+    style: TEXT_STYLE});
+
+var instruc_4 = ui.Label({
+    value: '📈 Zoom and click the map to chart the spectral profile '
+        + 'for a clicked point.',
+    style: TEXT_STYLE});
+
+instruc_panel
+    .add(instruc_label)
+    .add(instruc_1)
+    .add(instruc_2)
+    .add(instruc_3)
+    .add(instruc_4);
+
+// -----------------------------------------------------------------------------
+//
+// Set up config panel
+  
+config_panel.add(label_factory(
+    'S p e c t r a l _ E n c o u n t e r ( ' + SENSOR + ' )'));
+
+var red_label = label_factory('R:');
+var green_label = label_factory('G:');
+var blue_label = label_factory('B:');
+
+var red_slider = slider_factory();
+var green_slider = slider_factory();
+var blue_slider = slider_factory();
+
+var red_select = select_factory(RED_DEFAULT);
+var green_select = select_factory(GREEN_DEFAULT);
+var blue_select = select_factory(BLUE_DEFAULT);
+
+var rgb_config = ui.Panel([
+        panel_factory([red_label, red_select, red_slider]),
+        panel_factory([green_label, green_select, green_slider]),
+        panel_factory([blue_label, blue_select, blue_slider])], 
+    ui.Panel.Layout.Flow('vertical'),
+    {backgroundColor: COLORS.transparent});
+
+// Set up date slider.
+
+var start = ee.Image(COLLECTION.first()).date().format();
+var now = Date.now();
+var end = ee.Date(now).format();
+
+var dateRange = ee.DateRange(start, end).evaluate(function(range) {
+      var dateSlider = ui.DateSlider({
+          start: range['dates'][0],
+          end: range['dates'][1],
+          value: range['dates'][1],
+          period: 1,
+          style: {
+              stretch: 'horizontal', 
+              backgroundColor: COLORS.faded,
+              padding: '10px',
+              height: '90px'},
+          onChange: function(value) { update_image(value.end()); }});
+          
+      config_panel.add(dateSlider).add(rgb_config);
+      Map.add(config_panel); 
+    });
+
+// Chart reset button
+var reset_button = ui.Button({
+    label: 'Clear Chart and Samples',
+    style: {
+        fontSize: '8px',
+        color: 'black', 
+        stretch: 'horizontal'}});
+
+reset_button.onClick(function() {
+      samples = [];
+      colors_list = [];
+      
+      Map.remove(chart_panel);
+      for (var i = Map.layers().length() - 1; i >= 1; i--) {
+        Map.remove(Map.layers().get(i));
+      }
+    });
+
+function on_click(coords) {
+  Map.remove(instruc_panel);
+  
+  if (lock_map) return;
+
+  var point = ee.Geometry.Point([coords.lon, coords.lat]);
+  samples.push(ee.Feature(point, {'seq': samples.length}));
+
+  var color = paletterie();
+  colors_list.push(color);
+  
+  Map.addLayer(point, {color: color}, 'Sample ' + (samples.length - 1));
+
+  var samples_fc = ee.FeatureCollection(samples);
+  var image = Map.layers().get(0).getEeObject();
+  
+  var chart = ui.Chart.image.regions({
+      image: image,
+      regions: samples_fc,
+      scale: 10,
+      seriesProperty: 'seq',
+      xLabels: WAVELENGTHS});
+
+  chart.setChartType('LineChart');
+  chart.setOptions({
+      hAxis: {
+          title: 'Wavelength (micrometers)'},
+      vAxis: {
+          title: SENSOR + ' TOA Reflectance',
+          viewWindow: {min: 0, max: 1.0}},
+      lineWidth: 1,
+      pointSize: 4,
+      colors: colors_list,
+      curveType: 'function'});
+  
+  chart_panel.clear();
+  chart_panel.add(chart).add(reset_button);
+  
+  if (Map.widgets().length() != 2) {
+    Map.add(chart_panel);
+  }
+}
+
+// -----------------------------------------------------------------------------
+//
+// Map styling
+
+Map.add(instruc_panel);
+
+Map.setControlVisibility({
+    zoomControl: false,
+    drawingToolsControl: false,
+    layerList: true});
+      
+Map.style().set({cursor:'crosshair'});
+
+Map.onClick(on_click);
+update_image(now);
+
+var stylers = require('users/valeriepasquarella/shared:map_stylers');
+Map.setOptions('Dark', {Dark: stylers.dark_mode});
