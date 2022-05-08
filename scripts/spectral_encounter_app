@@ -12,7 +12,7 @@ var SENSOR = 'S2';
 
 if (SENSOR == 'S2') {
   var SENSOR_NAME = 'Sentinel-2';
-  var COLLECTION = ee.ImageCollection("COPERNICUS/S2");
+  var COLLECTION = ee.ImageCollection("COPERNICUS/S2_HARMONIZED");
   
   // Time step in days.
   var HISTORY = 5;
@@ -45,7 +45,7 @@ if (SENSOR == 'S2') {
   
 } else if (SENSOR == 'L8') {
   var SENSOR_NAME = 'Landsat 8';
-  var COLLECTION = ee.ImageCollection("LANDSAT/LC08/C01/T1_RT_TOA")
+  var COLLECTION = ee.ImageCollection("LANDSAT/LC08/C02/T1_RT_TOA")
       .filterMetadata('WRS_ROW', 'less_than', 184);
   
   // Time step in days
