@@ -8,12 +8,19 @@ https://code.earthengine.google.com/?accept_repo=users/valeriepasquarella/ee-rs-
 ).
 
 ## Spectral Encounter
-The *Spectral Encounter* apps are designed to facilitate visualization of spectral properties of optical remote sensing imagery. The app script `scripts/spectral_encounter_app` can be used to generate both [Sentinel-2](https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2) and [Landsat 8](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC08_C01_T1_RT_TOA) versions of the tool.
+The **Spectral Encounter** apps are designed to facilitate visualization of spectral properties of optical remote sensing imagery. The app script `scripts/spectral_encounter_app` can be used to generate both [Sentinel-2](https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2) and [Landsat 8](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC08_C01_T1_RT_TOA) versions of the tool.
 
 * [Sentinel-2 Spectral Encounter app](https://valeriepasquarella.users.earthengine.app/view/spectral-encounter-s2)
 * [Landsat 8 Spectral Encounter app](https://valeriepasquarella.users.earthengine.app/view/spectral-encounter-l8)
 
 For more information on spectral signatures and the Spectral Encounter tools see the Medium article [Exploring optical imagery: a spectral encounter](https://medium.com/geospatial-processing-at-scale/exploring-optical-imagery-a-spectral-encounter-996cd3f0b591?source=friends_link&sk=eecbc350bd9aec44534cc13952f3240f).
+
+## EO Time Machine
+The **Earth Observation (EO) Time Machine** app was designed for exploring the spatial, spectral, and temporal dimensions of image collections. The app script `scripts/eo_time_machine_app` displays collections of optical imagery, including [Landsat 5](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LT05_C02_T1_L2), [Landsat 7](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LE07_C02_T1_L2), [Landsat 8](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC08_C02_T1_L2), [Landsat 9](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC09_C02_T1_L2), [Sentinel-2 SR](https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2_SR_HARMONIZED), [Sentinel-2 TOA](https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2_HARMONIZED), and [MODIS Terra 16-day vegetation indices](https://developers.google.com/earth-engine/datasets/catalog/MODIS_061_MOD13A1), [MODIS Terra SR 8-day composites](https://developers.google.com/earth-engine/datasets/catalog/MODIS_061_MOD09A1), and [MODIS Terra Daily SR](https://developers.google.com/earth-engine/datasets/catalog/MODIS_061_MOD09GA).
+
+* Link to [EO Time Machine app](https://valeriepasquarella.users.earthengine.app/view/eo-time-machine).
+
+**General useage notes**: Click a point on the map to view of time series of spectral magnitude, with chart visualization inspired by Justin Braaten's [RGB time series tools](https://github.com/jdbcode/ee-rgb-timeseries). Click points on the time series chart to display individual images. Change RGB band combinations to update imagery and chart. Change to a different sensor to compare across EO records. Pop out the chart and save times series for the clicked point as a CSV (including all spectral band values). Current version of the app also saves state as part of the URL, including clicked point location and RGB settings.
 
 
 ## This repo
