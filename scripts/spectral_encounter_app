@@ -1,6 +1,6 @@
-// SPECTRAL ENCOUNTER APP 🌈👻
+// SPECTRAL ENCOUNTER 🌈👻
 // 
-// date: 2021-08-06
+// date: 2022-05-07
 // author: Valerie J. Pasquarella 
 //
 // -----------------------------------------------------------------------------
@@ -9,7 +9,6 @@
 var SENSOR = 'S2';
 
 // Get sensor-specific parameters
-
 if (SENSOR == 'S2') {
   var SENSOR_NAME = 'Sentinel-2';
   var COLLECTION = ee.ImageCollection("COPERNICUS/S2_HARMONIZED");
