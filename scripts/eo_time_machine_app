@@ -1,0 +1,876 @@
+// THE EO TIME MACHINE
+// 
+// date: 2022-10-14
+// author: Valerie J. Pasquarella 
+//
+// -----------------------------------------------------------------------------
+
+// A spectral encounter of the second kind...
+
+var COLORS = {
+    'transparent': '#11ffee00', 
+    'gray': '#f8f9fA', 
+    'dark': '#302020', 
+    'black': '#000000',
+    'faded': '#ffffff75',
+    'white': '#c0c0c0',
+    'point': '#0000FF'
+};
+
+var EPSILON = 0.00001;
+
+// Label and text styling
+var LABEL_STYLE = {
+    fontFamily: 'sans-serif',
+    fontWeight: 'bold',
+    color: 'white',
+    backgroundColor: COLORS['transparent']};
+
+var TEXT_STYLE = {
+    fontFamily: 'sans-serif',
+    color: COLORS.white,
+    backgroundColor: COLORS['transparent']};
+    
+
+// Applies the scaling factors Landsat SR imagery.
+function scaleLandsatSR(image) {
+  var opticalBands = image.select('SR_B.').multiply(0.0000275).add(-0.2);
+  var thermalBands = image.select('ST_B.*').multiply(0.00341802).add(149.0);
+  
+  return image
+      .addBands(opticalBands, null, true)
+      .addBands(thermalBands, null, true)
+      .copyProperties(image, ["system:time_start"]);
+}
+
+// Applies QA masks to Landsat SR imagery.
+function maskLandsatSR(image) {
+  // Bit 0 - Fill
+  // Bit 1 - Dilated Cloud
+  // Bit 2 - Cirrus
+  // Bit 3 - Cloud
+  // Bit 4 - Cloud Shadow
+  var qaMask = image
+      .select('QA_PIXEL')
+      .bitwiseAnd(parseInt('11111', 2))
+      .eq(0);
+  var saturationMask = image.select('QA_RADSAT').eq(0);
+
+  // Replace the original bands with the scaled ones and apply the masks.
+  return image
+      .updateMask(qaMask)
+      .updateMask(saturationMask)
+      .copyProperties(image, ["system:time_start"]);
+}
+
+// Applies scaling factor Sentinel-2 SR imagery.
+function scaleS2(image) {
+  var opticalBands = image.select('B.*').multiply(0.0001);
+
+  return image
+      .addBands(opticalBands, null, true)
+      .copyProperties(image, ["system:time_start"]);
+}
+
+// Applies SCL (Sen2Cor) masks to Sentinel-2 SR imagery.
+function maskS2SR(image) {
+  var qa = image.select('SCL');
+
+  // Remap "clear" categories to 1, mask values default to 0.
+  var mask = qa.remap([2, 4, 5, 6, 11], [1, 1, 1, 1, 1]);
+
+  // Return the masked and scaled data, without the QA bands.
+  return image
+      .updateMask(mask)
+      .select('B.*')
+      .copyProperties(image, ['system:time_start']);
+}
+
+// Applies SCL (Sen2Cor) masks to Sentinel-2 SR imagery.
+function maskS2TOA(image) {
+  var qa = image.select('QA60')
+
+  // Bits 10 and 11 are clouds and cirrus, respectively.
+  var cloudBitMask = 1 << 10;
+  var cirrusBitMask = 1 << 11;
+
+  // Both flags should be set to zero, indicating clear conditions.
+  var mask = qa.bitwiseAnd(cloudBitMask).eq(0).and(
+             qa.bitwiseAnd(cirrusBitMask).eq(0))
+
+
+  // Return the masked and scaled data, without the QA bands.
+  return image
+      .updateMask(mask)
+      .select('B.*')
+      .copyProperties(image, ['system:time_start']);
+}
+
+// Scale MODIS and mask nodata.
+function scaleModisSR(image) {
+  var opticalBands = image.select('sur_refl.*').multiply(0.0001);
+  
+  return image
+      .addBands(opticalBands, null, true)
+      .copyProperties(image, ['system:time_start']);
+}
+
+function scaleModisVI(image) {
+  var ndvi = image.select('NDVI').multiply(0.0001);
+  var evi = image.select('EVI').multiply(0.0001);
+  
+  return image
+      .addBands(ndvi, null, true)
+      .addBands(evi, null, true)
+      .copyProperties(image, ['system:time_start']);
+}
+
+// Apply cloud mask to daily MODIS SR.
+function maskModisSR(image) {
+  // Select the QA band.
+  var QA = image.select('state_1km');
+  // Make a mask to get bit 10, the internal_cloud_algorithm_flag bit.
+  var bitMask = 1 << 10;
+  // Return an image masking out cloudy areas.
+  return image
+      .updateMask(QA.bitwiseAnd(bitMask).eq(0))
+      .copyProperties(image, ['system:time_start']);
+}
+
+function zeroWhenSet(image, bitList) {
+  var mask = ee.Image(1);
+  for (var i = 0; i < bitList.length; ++i) {
+    mask = mask.multiply(
+        ee.Image(1).subtract(image
+            .rightShift(bitList[i])
+            .bitwiseAnd(ee.Image(1))));
+  }
+  return mask;
+}
+
+// Apply cloud mask to MODIS SR 8-day composites.
+function maskModisSR8d(image) {
+  // Select the QA band.
+  var qa = image.select('StateQA');
+  var mask = zeroWhenSet(qa, [0, 1, 2, 8, 9]);
+    
+  return image
+      .updateMask(mask)
+      .copyProperties(image, ['system:time_start']);
+}
+
+// Apply cloud mask to MODIS SR 16-day VI product.
+function maskModisSRVI(image) {
+  // Select the QA band.
+  var qa = image.select('SummaryQA');
+  var mask = qa.eq(0); // Good data
+    
+  return image
+      .updateMask(mask)
+      .copyProperties(image, ['system:time_start']);
+}
+
+
+// Number of days to include in composite for active sensors.
+var HISTORY_DAYS = 180;
+
+// Main configuration dictionary.
+var SENSOR_DICT = {
+  'Landsat 5 - TM SR': {
+      'sensor_name': 'Landsat 5 TM SR',
+      'band_dict': {
+        'B1 - Blue': 'SR_B1',
+        'B2 - Green': 'SR_B2',
+        'B3 - Red': 'SR_B3',
+        'B4 - NIR': 'SR_B4',
+        'B5 - SWIR 1': 'SR_B5',
+        'B7 - SWIR 2': 'SR_B7'},
+      'red_default': 'B3 - Red',
+      'green_default': 'B2 - Green',
+      'blue_default': 'B1 - Blue',
+      'collection': ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
+          .map(scaleLandsatSR),
+      'collection_masked': ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
+          .map(scaleLandsatSR)
+          .map(maskLandsatSR),
+      'start_date': ee.Date('1985-01-01'),
+      'end_date': ee.Date('1986-01-01')
+  },
+  'Landsat 7 - ETM+ SR': {
+      'sensor_name': 'Landsat 7 ETM+ SR',
+      'band_dict': {
+        'B1 - Blue': 'SR_B1',
+        'B2 - Green': 'SR_B2',
+        'B3 - Red': 'SR_B3',
+        'B4 - NIR': 'SR_B4',
+        'B5 - SWIR 1': 'SR_B5',
+        'B7 - SWIR 2': 'SR_B7'},
+      'red_default': 'B3 - Red',
+      'green_default': 'B2 - Green',
+      'blue_default': 'B1 - Blue',
+      'collection': ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
+          .map(scaleLandsatSR),
+      'collection_masked': ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
+          .map(scaleLandsatSR)
+          .map(maskLandsatSR),
+      'start_date': ee.Date('2010-01-01'),
+      'end_date': ee.Date('2011-01-01')
+  },
+  'Landsat 8 - OLI SR': {
+      'sensor_name': 'Landsat 8 OLI SR',
+      'band_dict': {
+        'B1 - Coastal': 'SR_B1',
+        'B2 - Blue': 'SR_B2',
+        'B3 - Green': 'SR_B3',
+        'B4 - Red': 'SR_B4',
+        'B5 - NIR': 'SR_B5',
+        'B6 - SWIR 1': 'SR_B6',
+        'B7 - SWIR 2': 'SR_B7'},
+      'red_default': 'B4 - Red',
+      'green_default': 'B3 - Green',
+      'blue_default': 'B2 - Blue',
+      'collection': ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
+          .map(scaleLandsatSR),
+      'collection_masked': ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
+          .map(scaleLandsatSR)
+          .map(maskLandsatSR),
+      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
+      'end_date': ee.Date(Date.now())
+  },
+  'Landsat 9 - OLI SR': {
+      'sensor_name': 'Landsat 9 OLI SR',
+      'band_dict': {
+        'B1 - Coastal': 'SR_B1',
+        'B2 - Blue': 'SR_B2',
+        'B3 - Green': 'SR_B3',
+        'B4 - Red': 'SR_B4',
+        'B5 - NIR': 'SR_B5',
+        'B6 - SWIR 1': 'SR_B6',
+        'B7 - SWIR 2': 'SR_B7'},
+      'red_default': 'B4 - Red',
+      'green_default': 'B3 - Green',
+      'blue_default': 'B2 - Blue',
+      'collection': ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
+          .map(scaleLandsatSR),
+      'collection_masked': ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
+          .map(scaleLandsatSR)
+          .map(maskLandsatSR),
+      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
+      'end_date': ee.Date(Date.now())
+  },
+  'Sentinel-2 - MSI SR': {
+      'sensor_name': 'Sentinel-2 MSI SR',
+      'band_dict': {
+        'B1 - Coastal aerosol': 'B1',
+        'B2 - Blue': 'B2',
+        'B3 - Green': 'B3',
+        'B4 - Red': 'B4',
+        'B5 - Red edge 1': 'B5',
+        'B6 - Red edge 2': 'B6',
+        'B7 - Red edge 3': 'B7',
+        'B8 - NIR': 'B8',
+        'B8A - NIR (narrow)': 'B8A',
+        'B9 - Water vapor': 'B9',
+        'B11 - SWIR 1': 'B11',
+        'B12 - SWIR 2': 'B12'},
+      'red_default': 'B4 - Red',
+      'green_default': 'B3 - Green',
+      'blue_default': 'B2 - Blue',
+      'collection': ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+          .map(scaleS2),
+      'collection_masked': ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+          .map(scaleS2)
+          .map(maskS2SR),
+      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
+      'end_date': ee.Date(Date.now())
+  },
+  'Sentinel-2 - MSI TOA': {
+      'sensor_name': 'Sentinel-2 MSI TOA',
+      'band_dict': {
+        'B1 - Coastal aerosol': 'B1',
+        'B2 - Blue': 'B2',
+        'B3 - Green': 'B3',
+        'B4 - Red': 'B4',
+        'B5 - Red edge 1': 'B5',
+        'B6 - Red edge 2': 'B6',
+        'B7 - Red edge 3': 'B7',
+        'B8 - NIR': 'B8',
+        'B8A - NIR (narrow)': 'B8A',
+        'B9 - Water vapor': 'B9',
+        'B10 - Cirrus': 'B10',
+        'B11 - SWIR 1': 'B11',
+        'B12 - SWIR 2': 'B12'},
+      'red_default': 'B4 - Red',
+      'green_default': 'B3 - Green',
+      'blue_default': 'B2 - Blue',
+      'collection': ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
+          .map(scaleS2),
+      'collection_masked': ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
+          .map(scaleS2)
+          .map(maskS2TOA),
+      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
+      'end_date': ee.Date(Date.now())
+  },
+  'MODIS Terra VI (16-day)': {
+      'sensor_name': 'MODIS Terra VI (16-day)',
+      'band_dict': {
+        'NDVI': 'NDVI',
+        'EVI': 'EVI',
+        'B1 - Red': 'sur_refl_b01',
+        'B2 - NIR': 'sur_refl_b02',
+        'B3 - Blue': 'sur_refl_b03',
+        'B7 - SWIR2': 'sur_refl_b07'
+      },
+      'red_default': 'EVI',
+      'green_default': 'NDVI',
+      'blue_default': 'B7 - SWIR2',
+      'collection': ee.ImageCollection('MODIS/061/MOD13A1')
+        .map(scaleModisSR)
+        .map(scaleModisVI),
+      'collection_masked': ee.ImageCollection('MODIS/061/MOD13A1')
+        .map(scaleModisSR)
+        .map(scaleModisVI)
+        .map(maskModisSRVI),
+      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
+      'end_date': ee.Date(Date.now())
+  },
+  'MODIS Terra SR (8-day)': {
+      'sensor_name': 'MODIS Terra SR (8-day)',
+      'band_dict': {
+        'B1 - Red': 'sur_refl_b01',
+        'B2 - NIR1': 'sur_refl_b02',
+        'B3 - Blue': 'sur_refl_b03',
+        'B4 - Green': 'sur_refl_b04',
+        'B5 - NIR2': 'sur_refl_b05',
+        'B6 - SWIR1': 'sur_refl_b06',
+        'B7 - SWIR2': 'sur_refl_b07'
+      },
+      'red_default': 'B1 - Red',
+      'green_default': 'B4 - Green',
+      'blue_default': 'B3 - Blue',
+      'collection': ee.ImageCollection("MODIS/061/MOD09A1")
+        .map(scaleModisSR),
+      'collection_masked': ee.ImageCollection("MODIS/061/MOD09A1")
+        .map(scaleModisSR)
+        .map(maskModisSR8d),
+      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
+      'end_date': ee.Date(Date.now())
+  },
+  'MODIS Terra SR (Daily)': {
+      'sensor_name': 'MODIS Terra SR (Daily)',
+      'band_dict': {
+        'B1 - Red': 'sur_refl_b01',
+        'B2 - NIR1': 'sur_refl_b02',
+        'B3 - Blue': 'sur_refl_b03',
+        'B4 - Green': 'sur_refl_b04',
+        'B5 - NIR2': 'sur_refl_b05',
+        'B6 - SWIR1': 'sur_refl_b06',
+        'B7 - SWIR2': 'sur_refl_b07'
+      },
+      'red_default': 'B1 - Red',
+      'green_default': 'B4 - Green',
+      'blue_default': 'B3 - Blue',
+      'collection': ee.ImageCollection('MODIS/061/MOD09GA')
+        .map(scaleModisSR),
+      'collection_masked': ee.ImageCollection('MODIS/061/MOD09GA')
+        .map(scaleModisSR)
+        .map(maskModisSR),
+      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
+      'end_date': ee.Date(Date.now())
+      }
+};
+
+var SENSOR_DEFAULT = 'Landsat 8 - OLI SR';
+var sensor_url = ui.url.get('sensor', SENSOR_DEFAULT);
+ui.url.set('sensor', sensor_url);
+
+var SENSOR_OPTIONS = Object.keys(SENSOR_DICT);
+
+var CONTROL_PANEL_HEIGHT = '260px';
+var CHART_PANEL_WIDTH_PERCENT = 75;
+
+var CONTROL_PANEL_WIDTH = (100 - CHART_PANEL_WIDTH_PERCENT).toString() + '%';
+var CHART_PANEL_WIDTH = CHART_PANEL_WIDTH_PERCENT.toString() + '%';
+
+var CONTROL_SUBPANEL_MARGIN = '5px 5px 5px 0px';
+
+var IMAGE_LAYER_INDEX = 0;
+var CLICKED_POINT_LAYER_INDEX = 1;
+var ASSET_LAYER_INDEX = 2;
+
+
+function createLabel(label) {
+  return ui.Label({
+      value: label,
+      style: LABEL_STYLE
+  });
+}
+
+function createTextLabel(label) {
+  return ui.Label({
+      value: label,
+      style: TEXT_STYLE
+  });
+}
+
+function createPulldown(default_value, url_key, items) {
+  var value_from_url = ui.url.get(url_key, default_value);
+  ui.url.set(url_key, value_from_url);
+  return ui.Select({
+      value: value_from_url,
+      items: items,
+      style: {
+          stretch: 'horizontal', 
+          width: '150px'}});
+}
+
+function createSlider(default_value, url_key) {
+  var value_from_url = ui.url.get(url_key, default_value);
+  ui.url.set(url_key, value_from_url);
+  return ui.Slider({
+      min: 0,
+      max: 1.0,
+      value: value_from_url,
+      step: 0.05,
+      style: {
+          stretch: 'horizontal',
+          backgroundColor: COLORS['transparent'],
+          fontFamily: 'sans-serif',
+          color: 'white'}});
+}
+
+function createPanel(widgetList) {
+  return ui.Panel(
+      widgetList,
+      ui.Panel.Layout.Flow('horizontal'), {
+          stretch: 'horizontal',
+          backgroundColor: COLORS['transparent']
+      });
+}
+
+var chartPanel = ui.Panel({
+  widgets: [],
+  style: {
+    backgroundColor: COLORS['transparent'],
+    width: '75%'
+  }});
+
+var sensorSelect = ui.Select({
+      value: ui.url.get('sensor'),
+      items: SENSOR_OPTIONS,
+      style: {
+          stretch: 'horizontal', 
+          width: '150px'},
+});
+
+function getSensorProperties() {
+  return SENSOR_DICT[sensorSelect.getValue()];
+}
+
+var initSensorProperties = getSensorProperties();
+var initSelectKeys = Object.keys(initSensorProperties['band_dict']);
+
+var red_default = initSensorProperties['red_default'];
+var redSelect = createPulldown(red_default, 'red', 
+                               initSelectKeys);
+
+var green_default = initSensorProperties['green_default'];
+var greenSelect = createPulldown(green_default, 'green',
+                                 initSelectKeys);
+
+var blue_default = initSensorProperties['blue_default'];
+var blueSelect = createPulldown(blue_default, 'blue',
+                                initSelectKeys);
+
+var redSlider = createSlider(0.25, 'red_max');
+var greenSlider = createSlider(0.25, 'green_max');
+var blueSlider = createSlider(0.25, 'blue_max');
+
+// Creates a visualization parameter dictionary.
+function makeVizParams() {
+  var bandDict = getSensorProperties()['band_dict'];
+
+  var redBand = bandDict[redSelect.getValue()];
+  var greenBand = bandDict[greenSelect.getValue()];
+  var blueBand = bandDict[blueSelect.getValue()];
+  
+  ui.url.set('red', redSelect.getValue());
+    ui.url.set('green', greenSelect.getValue());
+  ui.url.set('blue', blueSelect.getValue());
+  
+  var rgbList = [redBand, greenBand, blueBand];
+  
+  var redMax = redSlider.getValue();
+  var greenMax = greenSlider.getValue();
+  var blueMax = blueSlider.getValue();
+  
+  var rgbMax = [redMax, greenMax, blueMax];
+  
+  ui.url.set('red_max', redMax);
+  ui.url.set('green_max', greenMax);
+  ui.url.set('blue_max', blueMax);
+  
+  return {bands: rgbList, min: 0, max: rgbMax};
+}
+
+var map = ui.Map();
+
+var COORDS_DECIMAL_PLACES = 4;
+
+var chartInfo = {};
+// Function with parameters: rgbBandNames, rgbValues
+chartInfo.styleChartFn = undefined;
+chartInfo.tryUpdateChartFn = function() { 
+  if (chartInfo.styleChartFn === undefined) return;
+  
+  var vizParams = makeVizParams();
+  chartInfo.styleChartFn(vizParams['bands'], vizParams['max']);
+};
+
+function clearChart() {
+  chartPanel.clear();
+  chartInfo.styleChartFn = undefined;
+}
+
+// Updates visualization parameters.
+function updateViz() {
+  var vizParams = makeVizParams();
+  
+  var layer = map.layers().get(0);
+  var image = layer.getEeObject();
+
+  chartInfo.tryUpdateChartFn();
+
+  var newLayer = ui.Map.Layer(image, vizParams, layer.get('name'));
+  map.layers().set(IMAGE_LAYER_INDEX, newLayer);
+}
+
+redSelect.onChange(updateViz);
+greenSelect.onChange(updateViz);
+blueSelect.onChange(updateViz);
+
+redSlider.onChange(updateViz);
+greenSlider.onChange(updateViz);
+blueSlider.onChange(updateViz);
+
+// Change sensor properties.
+function updateSensor(sensor) {
+  clearChart();
+  ui.url.set('sensor', sensor);
+
+  var curSensorProperties = getSensorProperties();
+  var selectKeys = Object.keys(curSensorProperties['band_dict']);
+
+  var collectionMasked = curSensorProperties['collection_masked'];
+  var composite = collectionMasked
+      .filterDate(curSensorProperties['start_date'], curSensorProperties['end_date'])
+      .median();
+  
+  var compositeImageLayer = ui.Map.Layer(composite, makeVizParams(), 'composite');
+  map.layers().set(IMAGE_LAYER_INDEX, compositeImageLayer);
+  
+  // Put all the controls to bed, and wake them back up after we've
+  // updated the pull-down placeholders and values.
+
+  redSelect.unlisten();
+  greenSelect.unlisten();
+  blueSelect.unlisten();
+
+  redSelect.items().reset(selectKeys);
+  greenSelect.items().reset(selectKeys);
+  blueSelect.items().reset(selectKeys);
+  
+  redSelect.setValue(curSensorProperties['red_default']);
+  greenSelect.setValue(curSensorProperties['green_default']);
+  blueSelect.setValue(curSensorProperties['blue_default']);
+ 
+  redSelect.setPlaceholder(curSensorProperties['red_default']);
+  greenSelect.setPlaceholder(curSensorProperties['green_default']);
+  blueSelect.setPlaceholder(curSensorProperties['blue_default']);
+ 
+  redSelect.onChange(updateViz);
+  greenSelect.onChange(updateViz);
+  blueSelect.onChange(updateViz);
+  
+  updateViz();
+  
+  // Check to see if we've added a clicked point yet.
+  // If not, don't update a non-existent chart.
+  var layerNameCheck = map.layers().get(CLICKED_POINT_LAYER_INDEX).get('name');
+  
+  if (layerNameCheck === 'clicked point') {
+    var clickedPoint = map.layers().get(CLICKED_POINT_LAYER_INDEX)
+        .getEeObject()
+        .geometry()
+        .coordinates();
+
+    var clickedCoords = {
+      'lon': clickedPoint.getNumber(0).getInfo(),
+      'lat': clickedPoint.getNumber(1).getInfo()
+    };
+    updateChart(clickedCoords);
+  }
+}
+
+sensorSelect.onChange(updateSensor);
+
+function updateChart(geoCoords) {
+  clearChart();
+  var curSensorProperties = getSensorProperties();
+  
+  var bandDict = curSensorProperties['band_dict'];
+  var keys = Object.keys(bandDict);
+
+  var bandList = Object.keys(bandDict)
+      .map(function(key){return bandDict[key];
+  });
+  
+  var lon = geoCoords['lon'];
+  var lat = geoCoords['lat'];
+
+  var clickedPoint = ee.Geometry.Point([lon, lat]);
+  var pointLayer = ui.Map.Layer(clickedPoint, {color: COLORS.point}, 'clicked point');
+  
+  map.layers().set(1, pointLayer);
+  ui.url.set('clicked', true);
+  ui.url.set('lon', lon);
+  ui.url.set('lat', lat);
+  ui.url.set('zoom', map.getZoom());
+
+  var sampledValues = curSensorProperties['collection_masked']
+      .filterBounds(clickedPoint)
+      .map(function(img) {
+        return img
+            .select(bandList)
+            .sample(clickedPoint)
+            .map(function (f) {
+                  return f.set('t', img.getNumber('system:time_start'));
+                }).first();
+      }, true)
+      .toList(1e4)
+      .map(function(f) {
+        return ee.Feature(f).toDictionary();
+      })
+      .evaluate(function(sampledValues) {
+    clearChart();
+
+    var chart = ui.Chart(
+        [['', ''], [0, 0]],
+        'ScatterChart',
+        {
+            title: 'lon, lat: ' + lon.toFixed(COORDS_DECIMAL_PLACES) + 
+                ', ' + lat.toFixed(COORDS_DECIMAL_PLACES),
+            hAxis: {'title': 'date'},
+            vAxis: {'title': curSensorProperties.sensor_name + ' \n spectral magnitude'},
+            pointSize: 4,
+            lineWidth: 0,
+            legend: {'position': 'none'}});
+
+    chart.onClick(function(timeCoords) {
+      if (timeCoords) {
+        var image = curSensorProperties['collection']
+            .filterBounds(clickedPoint)
+            .filterDate(timeCoords)
+            .first();
+        var date = ee.Date(timeCoords).format().split('T').get(0).getInfo();
+        var singleImageLayer = ui.Map.Layer(image, makeVizParams(), date);
+        map.layers().set(IMAGE_LAYER_INDEX, singleImageLayer);
+      }
+      else {
+        var collectionMasked = curSensorProperties['collection_masked'];
+        var composite = collectionMasked
+            .filterDate(curSensorProperties['start_date'], curSensorProperties['end_date'])
+            .median();
+        var compositeImageLayer = ui.Map.Layer(composite, makeVizParams(), 'composite');
+  
+        map.layers().set(IMAGE_LAYER_INDEX, compositeImageLayer)
+      }
+    });
+
+    chartPanel.add(chart);
+
+    chartInfo.styleChartFn = function(rgbBandNames, rgbValues) {
+      
+      var updatedDataTable = [['date', 'spectral magnitude', {label: 'rgb', role: 'style'}, {label: 'display_date', role: 'tooltip'}].concat(bandList).concat('t_millis')];
+      for (var i = 0; i < sampledValues.length; ++i) {
+        // Build a new data table for the chart based on (potentially) updated
+        // band values.
+        var sampleDict = sampledValues[i];
+
+        var r = sampleDict[rgbBandNames[0]];
+        var g = sampleDict[rgbBandNames[1]];
+        var b = sampleDict[rgbBandNames[2]];
+        var m = Math.sqrt(r * r + g * g + b * b);
+        
+        var rViz = Math.min(Math.max(Math.floor(r / (rgbValues[0] + EPSILON) * 255.0), 0), 255);
+        var gViz = Math.min(Math.max(Math.floor(g / (rgbValues[1] + EPSILON) * 255.0), 0), 255);
+        var bViz = Math.min(Math.max(Math.floor(b / (rgbValues[2] + EPSILON) * 255.0), 0), 255);
+        var rgbString = 'rgb(' + rViz + ', ' + gViz + ', ' + bViz + ')';
+        
+        // Get time as a Date
+        var datetimeValue = new Date(sampleDict['t']);
+        
+        // Get list of all band values + time
+        var valueList = Object.keys(sampleDict)
+            .map(function(key){return Number(sampleDict[key]);
+        });
+        
+        updatedDataTable.push([datetimeValue, m, rgbString, datetimeValue.toString()].concat(valueList));
+      }
+      chart.setDataTable(updatedDataTable).setView({'columns': [0, 1, 2, 3]});
+    }
+    
+    chartInfo.tryUpdateChartFn();
+  })
+  chartPanel.add(createTextLabel('⏳ Searching through years of data...'))
+}
+
+var assetTextbox = ui.Textbox({
+  placeholder: 'Path to asset or lon, lat'
+})
+
+var assetLoadButton = ui.Button({
+  label: 'Load',
+  onClick: function() {
+    var assetPath = assetTextbox.getValue();
+    
+    // If input string contains '/', interpret as a path
+    if (assetPath.indexOf('/') >= 0) {
+      var asset = ee.FeatureCollection(assetPath)
+        .style({color: 'crimson', fillColor: '00000000'});
+      var assetLayer = ui.Map.Layer(asset, {}, 'feature collection');
+      map.layers().set(ASSET_LAYER_INDEX, assetLayer);
+      map.centerObject(asset);
+    
+    // Else if string contains decimal point and comma, interpret
+    // as coordinates
+    } else if ((assetPath.indexOf('.') >=0) & (assetPath.indexOf(',') >=0)) {
+      var lon = Number(assetPath.split(', ')[0]);
+      var lat = Number(assetPath.split(', ')[1]);
+      
+      var point = ee.Geometry.Point([lon, lat]);
+      var pointLayer = ui.Map.Layer(point, {color: 'crimson'}, 'point');
+      map.layers().set(ASSET_LAYER_INDEX, pointLayer);
+      map.centerObject(point, 15);
+    }
+   
+  }
+});
+
+// Panel setup.
+
+var redLabel = createLabel('🟥');
+var greenLabel = createLabel('🟩');
+var blueLabel = createLabel('🟦');
+
+var assetLabel = createLabel('🌐');
+
+var mainPanel = ui.Panel({
+  layout: ui.Panel.Layout.flow('vertical'),
+  style: {
+    position: 'bottom-left', 
+    stretch: 'both',
+    backgroundColor: COLORS['black']
+  }});
+
+var sensorPanel = ui.Panel({
+  widgets: [
+    createPanel([createLabel('⚫️ '), sensorSelect])],
+  layout: ui.Panel.Layout.Flow('vertical'),
+  style: {
+    backgroundColor: COLORS['dark'],
+    margin: CONTROL_SUBPANEL_MARGIN,
+    width: '100%'
+  }});
+
+var rgbPanel = ui.Panel({
+  widgets: [
+    createPanel([redLabel, redSelect, redSlider]),
+    createPanel([greenLabel, greenSelect, greenSlider]),
+    createPanel([blueLabel, blueSelect, blueSlider])],
+  layout: ui.Panel.Layout.Flow('vertical'),
+  style: {
+    backgroundColor: COLORS['transparent'],
+    margin: CONTROL_SUBPANEL_MARGIN,
+    width: '100%'
+  }});
+  
+var loadAssetPanel = ui.Panel({
+  widgets: [assetLabel, assetTextbox, assetLoadButton],
+  layout: ui.Panel.Layout.Flow('horizontal'),
+  style: {
+    backgroundColor: COLORS['transparent'],
+    margin: CONTROL_SUBPANEL_MARGIN,
+    width: '100%'
+  }});
+
+var controlPanel = ui.Panel({
+  widgets: [sensorPanel, rgbPanel, loadAssetPanel],
+  style: {
+    backgroundColor: COLORS['transparent'],
+    width: CONTROL_PANEL_WIDTH
+  }});
+  
+var interfacePanel = ui.Panel({
+  widgets: [], 
+  layout: ui.Panel.Layout.Flow('horizontal'),
+  style: {
+    backgroundColor: COLORS['transparent'],
+    height: CONTROL_PANEL_HEIGHT
+  }});
+
+ui.root.clear();
+
+interfacePanel.add(controlPanel).add(chartPanel);
+ui.root.add(mainPanel.add(map).add(interfacePanel));
+
+// Initialize chart panel with some basic instructions
+var INSTRUCTIONS_L0 = 'Welcome to the EO Time Machine! Let\'s get started...';
+var INSTRUCTIONS_L1 = '▶ The map displays a cloud-free composite by default.';
+var INSTRUCTIONS_L2 = '▶ Zoom in and click a point on the map to view a time series ' +
+    'of observations for the selected sensor.';
+var INSTRUCTIONS_L3 = '▶ Click a point on the time series chart to load ' +
+    'the corresponding image acquisition.';
+var INSTRUCTIONS_L4 = '▶ Change the selected sensor using the sensor pull-down.';
+var INSTRUCTIONS_L5 = '▶ Change the RGB bands and stretch using the RGB controls.';
+var INSTRUCTIONS_L6 = '▶ To load your own feature collection or point location, ' +
+    'paste the path to the asset or lon, lat (x, y) coordinates in the text box, ' +
+    'then click the Load button.';
+
+chartPanel
+    .add(createLabel(INSTRUCTIONS_L0))
+    .add(createTextLabel(INSTRUCTIONS_L1))
+    .add(createTextLabel(INSTRUCTIONS_L2))
+    .add(createTextLabel(INSTRUCTIONS_L3))
+    .add(createTextLabel(INSTRUCTIONS_L4))
+    .add(createTextLabel(INSTRUCTIONS_L5))
+    .add(createTextLabel(INSTRUCTIONS_L6));
+
+var collectionMasked = initSensorProperties['collection_masked'];
+
+var composite = collectionMasked
+    .filterDate(initSensorProperties['start_date'], initSensorProperties['end_date'])
+    .median();
+
+var compositeImageLayer = ui.Map.Layer(composite, makeVizParams(), 'composite');
+map.layers().set(IMAGE_LAYER_INDEX, compositeImageLayer);
+
+
+if (ui.url.get('clicked') === true) {
+  map.setCenter(ui.url.get('lon'), ui.url.get('lat'), ui.url.get('zoom'));
+
+  updateChart({
+      'lon': ui.url.get('lon'), 
+      'lat': ui.url.get('lat')
+  });
+} else {
+  map.layers().set(CLICKED_POINT_LAYER_INDEX, null);
+}
+
+// Click the map to get a time series chart.
+map.onClick(updateChart);
+map.onChangeZoom(function(zoom) {return ui.url.set('zoom', zoom)});
+
+map.style().set({cursor:'crosshair'});
+var stylers = require('users/valeriepasquarella/shared:map_stylers');
+map.setOptions('Dark', {Dark: stylers['dark_mode']});
