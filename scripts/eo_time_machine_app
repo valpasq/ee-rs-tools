@@ -691,7 +691,16 @@ function updateChart(geoCoords) {
 
     chartInfo.styleChartFn = function(rgbBandNames, rgbValues) {
       
-      var updatedDataTable = [['date', 'spectral magnitude', {label: 'rgb', role: 'style'}, {label: 'display_date', role: 'tooltip'}].concat(bandList).concat('t_millis')];
+      var updatedDataTable = [[ 
+          'date', 
+          'spectral magnitude', 
+          {label: 'rgb', role: 'style'}, 
+          {label: 'display_date', role: 'tooltip'},
+          'lon',
+          'lat']
+          .concat(bandList)
+          .concat('t_millis')];
+      
       for (var i = 0; i < sampledValues.length; ++i) {
         // Build a new data table for the chart based on (potentially) updated
         // band values.
@@ -715,7 +724,8 @@ function updateChart(geoCoords) {
             .map(function(key){return Number(sampleDict[key]);
         });
         
-        updatedDataTable.push([datetimeValue, m, rgbString, datetimeValue.toString()].concat(valueList));
+        updatedDataTable.push([datetimeValue, m, rgbString, datetimeValue.toString(), lon, 
+                lat].concat(valueList));
       }
       chart.setDataTable(updatedDataTable).setView({'columns': [0, 1, 2, 3]});
     }
