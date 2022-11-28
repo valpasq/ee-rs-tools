@@ -1,7 +1,7 @@
 // THE EO TIME MACHINE
 // 
-// date: 2022-10-14
-// author: Valerie J. Pasquarella 
+// author: Valerie J. Pasquarella
+// last updated: 2022-11-20
 //
 // -----------------------------------------------------------------------------
 
@@ -30,7 +30,54 @@ var TEXT_STYLE = {
     fontFamily: 'sans-serif',
     color: COLORS.white,
     backgroundColor: COLORS['transparent']};
-    
+
+function zeroWhenSet(image, bitList) {
+  var mask = ee.Image(1);
+  for (var i = 0; i < bitList.length; ++i) {
+    mask = mask.multiply(
+        ee.Image(1).subtract(image
+            .rightShift(bitList[i])
+            .bitwiseAnd(ee.Image(1))));
+  }
+  return mask;
+}
+
+function legacyNameLandsat4(image) {
+  return image
+    .select(['B1', 'B2', 'B3', 'B4'])
+    .rename(['B4', 'B5', 'B6', 'B7'])
+    .addBands(image.select('QA_PIXEL'));
+}
+
+function mergeLandsatMSS() {
+  var tier1 = ee.ImageCollection('LANDSAT/LM01/C02/T1')
+          .merge(ee.ImageCollection('LANDSAT/LM02/C02/T1'))
+          .merge(ee.ImageCollection('LANDSAT/LM03/C02/T1'))
+          .merge(ee.ImageCollection('LANDSAT/LM04/C02/T1').map(legacyNameLandsat4))
+  var tier2 = ee.ImageCollection('LANDSAT/LM01/C02/T2')
+          .merge(ee.ImageCollection('LANDSAT/LM02/C02/T2'))
+          .merge(ee.ImageCollection('LANDSAT/LM03/C02/T2'))
+          .merge(ee.ImageCollection('LANDSAT/LM04/C02/T2').map(legacyNameLandsat4))
+
+  return tier1.merge(tier2)
+          
+}
+function scaleLandsatMSS(image) {
+  var opticalBands = image.select('B.').divide(255);
+
+  return image
+      .addBands(opticalBands, null, true)
+      .copyProperties(image, ['system:time_start']);
+}
+
+function maskLandsatMSS(image) {
+  var qa = image.select('QA_PIXEL');
+  var qaMask = zeroWhenSet(qa, [0, 1, 3, 4, 5]);
+
+  return image
+      .updateMask(qaMask)
+      .copyProperties(image, ['system:time_start']);
+}
 
 // Applies the scaling factors Landsat SR imagery.
 function scaleLandsatSR(image) {
@@ -45,18 +92,12 @@ function scaleLandsatSR(image) {
 
 // Applies QA masks to Landsat SR imagery.
 function maskLandsatSR(image) {
-  // Bit 0 - Fill
-  // Bit 1 - Dilated Cloud
-  // Bit 2 - Cirrus
-  // Bit 3 - Cloud
-  // Bit 4 - Cloud Shadow
-  var qaMask = image
-      .select('QA_PIXEL')
-      .bitwiseAnd(parseInt('11111', 2))
-      .eq(0);
-  var saturationMask = image.select('QA_RADSAT').eq(0);
+  var qa = image.select('QA_PIXEL');
+  var qaMask = zeroWhenSet(qa, [0, 1, 3, 4, 5]);
+  
+  var saturation = image.select('QA_RADSAT');
+  var saturationMask = zeroWhenSet(saturation, [0, 1, 2, 3, 4, 5, 6, 8, 9]);
 
-  // Replace the original bands with the scaled ones and apply the masks.
   return image
       .updateMask(qaMask)
       .updateMask(saturationMask)
@@ -75,33 +116,21 @@ function scaleS2(image) {
 // Applies SCL (Sen2Cor) masks to Sentinel-2 SR imagery.
 function maskS2SR(image) {
   var qa = image.select('SCL');
+  var qaMask = qa.remap([2, 4, 5, 6, 11], [1, 1, 1, 1, 1]);
 
-  // Remap "clear" categories to 1, mask values default to 0.
-  var mask = qa.remap([2, 4, 5, 6, 11], [1, 1, 1, 1, 1]);
-
-  // Return the masked and scaled data, without the QA bands.
   return image
-      .updateMask(mask)
+      .updateMask(qaMask)
       .select('B.*')
       .copyProperties(image, ['system:time_start']);
 }
 
-// Applies SCL (Sen2Cor) masks to Sentinel-2 SR imagery.
+// Applies QA60 bitmask to Sentinel-2 TOA imagery.
 function maskS2TOA(image) {
-  var qa = image.select('QA60')
+  var qa = image.select('QA60');
+  var qaMask = zeroWhenSet(qa, [10, 11]);
 
-  // Bits 10 and 11 are clouds and cirrus, respectively.
-  var cloudBitMask = 1 << 10;
-  var cirrusBitMask = 1 << 11;
-
-  // Both flags should be set to zero, indicating clear conditions.
-  var mask = qa.bitwiseAnd(cloudBitMask).eq(0).and(
-             qa.bitwiseAnd(cirrusBitMask).eq(0))
-
-
-  // Return the masked and scaled data, without the QA bands.
   return image
-      .updateMask(mask)
+      .updateMask(qaMask)
       .select('B.*')
       .copyProperties(image, ['system:time_start']);
 }
@@ -115,6 +144,7 @@ function scaleModisSR(image) {
       .copyProperties(image, ['system:time_start']);
 }
 
+// Scale MODIS VI product.
 function scaleModisVI(image) {
   var ndvi = image.select('NDVI').multiply(0.0001);
   var evi = image.select('EVI').multiply(0.0001);
@@ -128,24 +158,12 @@ function scaleModisVI(image) {
 // Apply cloud mask to daily MODIS SR.
 function maskModisSR(image) {
   // Select the QA band.
-  var QA = image.select('state_1km');
-  // Make a mask to get bit 10, the internal_cloud_algorithm_flag bit.
-  var bitMask = 1 << 10;
-  // Return an image masking out cloudy areas.
+  var qa = image.select('state_1km');
+  var qaMask = zeroWhenSet(qa, [2, 10]);
+  
   return image
-      .updateMask(QA.bitwiseAnd(bitMask).eq(0))
+      .updateMask(qaMask)
       .copyProperties(image, ['system:time_start']);
-}
-
-function zeroWhenSet(image, bitList) {
-  var mask = ee.Image(1);
-  for (var i = 0; i < bitList.length; ++i) {
-    mask = mask.multiply(
-        ee.Image(1).subtract(image
-            .rightShift(bitList[i])
-            .bitwiseAnd(ee.Image(1))));
-  }
-  return mask;
 }
 
 // Apply cloud mask to MODIS SR 8-day composites.
@@ -163,10 +181,10 @@ function maskModisSR8d(image) {
 function maskModisSRVI(image) {
   // Select the QA band.
   var qa = image.select('SummaryQA');
-  var mask = qa.eq(0); // Good data
+  var qaMask = qa.eq(0); // Good data
     
   return image
-      .updateMask(mask)
+      .updateMask(qaMask)
       .copyProperties(image, ['system:time_start']);
 }
 
@@ -176,6 +194,24 @@ var HISTORY_DAYS = 180;
 
 // Main configuration dictionary.
 var SENSOR_DICT = {
+  'Landsat 1-4 - MSS Raw': {
+      'sensor_name': 'Landsat 1-4 MSS Raw',
+      'band_dict': {
+        'B4 - Green': 'B4',
+        'B5 - Red': 'B5',
+        'B6 - NIR1': 'B6',
+        'B7 - NIR2': 'B7'},
+      'red_default': 'B6 - NIR1',
+      'green_default': 'B5 - Red',
+      'blue_default': 'B4 - Green',
+      'collection': mergeLandsatMSS()
+          .map(scaleLandsatMSS),
+      'collection_masked': mergeLandsatMSS()
+          .map(maskLandsatMSS)
+          .map(scaleLandsatMSS),
+      'start_date': ee.Date('1973-01-01'),
+      'end_date': ee.Date('1974-01-01')
+  },
   'Landsat 5 - TM SR': {
       'sensor_name': 'Landsat 5 TM SR',
       'band_dict': {
@@ -700,7 +736,7 @@ function updateChart(geoCoords) {
           'lat']
           .concat(bandList)
           .concat('t_millis')];
-      
+
       for (var i = 0; i < sampledValues.length; ++i) {
         // Build a new data table for the chart based on (potentially) updated
         // band values.
