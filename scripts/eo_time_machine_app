@@ -1,7 +1,7 @@
 // THE EO TIME MACHINE
 // 
 // author: Valerie J. Pasquarella
-// last updated: 2022-11-20
+// last updated: 2022-11-27
 //
 // -----------------------------------------------------------------------------
 
@@ -24,12 +24,13 @@ var LABEL_STYLE = {
     fontFamily: 'sans-serif',
     fontWeight: 'bold',
     color: 'white',
-    backgroundColor: COLORS['transparent']};
+    backgroundColor: COLORS.transparent};
 
 var TEXT_STYLE = {
     fontFamily: 'sans-serif',
     color: COLORS.white,
-    backgroundColor: COLORS['transparent']};
+    backgroundColor: COLORS.transparent};
+
 
 function zeroWhenSet(image, bitList) {
   var mask = ee.Image(1);
@@ -42,12 +43,34 @@ function zeroWhenSet(image, bitList) {
   return mask;
 }
 
+
 function legacyNameLandsat4(image) {
   return image
     .select(['B1', 'B2', 'B3', 'B4'])
     .rename(['B4', 'B5', 'B6', 'B7'])
     .addBands(image.select('QA_PIXEL'));
 }
+
+function legacyNameLandsatTM(image) {
+  return image
+    .select(['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4',  'SR_B5',  'SR_B7'])
+    .rename(['blue', 'green', 'red', 'nir', 'swir1', 'swir2']);
+}
+
+
+function legacyNameLandsatETM(image) {
+  return image
+    .select(['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4',  'SR_B5',  'SR_B7'])
+    .rename(['blue', 'green', 'red', 'nir', 'swir1', 'swir2']);
+}
+
+
+function legacyNameLandsatOLI(image) {
+  return image
+    .select(['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6',  'SR_B7'])
+    .rename(['blue', 'green', 'red', 'nir', 'swir1', 'swir2']);
+}
+
 
 function mergeLandsatMSS() {
   var tier1 = ee.ImageCollection('LANDSAT/LM01/C02/T1')
@@ -62,6 +85,8 @@ function mergeLandsatMSS() {
   return tier1.merge(tier2)
           
 }
+
+
 function scaleLandsatMSS(image) {
   var opticalBands = image.select('B.').divide(255);
 
@@ -69,6 +94,7 @@ function scaleLandsatMSS(image) {
       .addBands(opticalBands, null, true)
       .copyProperties(image, ['system:time_start']);
 }
+
 
 function maskLandsatMSS(image) {
   var qa = image.select('QA_PIXEL');
@@ -78,6 +104,7 @@ function maskLandsatMSS(image) {
       .updateMask(qaMask)
       .copyProperties(image, ['system:time_start']);
 }
+
 
 // Applies the scaling factors Landsat SR imagery.
 function scaleLandsatSR(image) {
@@ -89,6 +116,7 @@ function scaleLandsatSR(image) {
       .addBands(thermalBands, null, true)
       .copyProperties(image, ["system:time_start"]);
 }
+
 
 // Applies QA masks to Landsat SR imagery.
 function maskLandsatSR(image) {
@@ -104,6 +132,7 @@ function maskLandsatSR(image) {
       .copyProperties(image, ["system:time_start"]);
 }
 
+
 // Applies scaling factor Sentinel-2 SR imagery.
 function scaleS2(image) {
   var opticalBands = image.select('B.*').multiply(0.0001);
@@ -112,6 +141,7 @@ function scaleS2(image) {
       .addBands(opticalBands, null, true)
       .copyProperties(image, ["system:time_start"]);
 }
+
 
 // Applies SCL (Sen2Cor) masks to Sentinel-2 SR imagery.
 function maskS2SR(image) {
@@ -124,6 +154,7 @@ function maskS2SR(image) {
       .copyProperties(image, ['system:time_start']);
 }
 
+
 // Applies QA60 bitmask to Sentinel-2 TOA imagery.
 function maskS2TOA(image) {
   var qa = image.select('QA60');
@@ -135,6 +166,7 @@ function maskS2TOA(image) {
       .copyProperties(image, ['system:time_start']);
 }
 
+
 // Scale MODIS and mask nodata.
 function scaleModisSR(image) {
   var opticalBands = image.select('sur_refl.*').multiply(0.0001);
@@ -143,6 +175,7 @@ function scaleModisSR(image) {
       .addBands(opticalBands, null, true)
       .copyProperties(image, ['system:time_start']);
 }
+
 
 // Scale MODIS VI product.
 function scaleModisVI(image) {
@@ -155,6 +188,7 @@ function scaleModisVI(image) {
       .copyProperties(image, ['system:time_start']);
 }
 
+
 // Apply cloud mask to daily MODIS SR.
 function maskModisSR(image) {
   // Select the QA band.
@@ -166,6 +200,7 @@ function maskModisSR(image) {
       .copyProperties(image, ['system:time_start']);
 }
 
+
 // Apply cloud mask to MODIS SR 8-day composites.
 function maskModisSR8d(image) {
   // Select the QA band.
@@ -176,6 +211,7 @@ function maskModisSR8d(image) {
       .updateMask(mask)
       .copyProperties(image, ['system:time_start']);
 }
+
 
 // Apply cloud mask to MODIS SR 16-day VI product.
 function maskModisSRVI(image) {
@@ -291,6 +327,49 @@ var SENSOR_DICT = {
       'collection_masked': ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
           .map(scaleLandsatSR)
           .map(maskLandsatSR),
+      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
+      'end_date': ee.Date(Date.now())
+  },
+  'Landsat Legacy SR': {
+      'sensor_name': 'Landsat Legacy SR',
+      'band_dict': {
+        'Blue': 'blue',
+        'Green': 'green',
+        'Red': 'red',
+        'NIR': 'nir',
+        'SWIR1': 'swir1',
+        'SWIR2': 'swir2'},
+      'red_default': 'Red',
+      'green_default': 'Green',
+      'blue_default': 'Blue',
+      'collection': ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
+          .map(scaleLandsatSR)
+          .map(legacyNameLandsatTM)
+          .merge(ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
+            .map(scaleLandsatSR)
+            .map(legacyNameLandsatETM))
+          .merge(ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
+            .map(scaleLandsatSR)
+            .map(legacyNameLandsatOLI))
+          .merge(ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
+            .map(scaleLandsatSR)
+            .map(legacyNameLandsatOLI)),
+      'collection_masked': ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
+          .map(scaleLandsatSR)
+          .map(maskLandsatSR)
+          .map(legacyNameLandsatTM)
+          .merge(ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
+            .map(scaleLandsatSR)
+            .map(maskLandsatSR)
+            .map(legacyNameLandsatETM))
+          .merge(ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
+              .map(scaleLandsatSR)
+              .map(maskLandsatSR)
+              .map(legacyNameLandsatOLI))
+          .merge(ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
+              .map(scaleLandsatSR)
+              .map(maskLandsatSR)
+              .map(legacyNameLandsatOLI)),
       'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
       'end_date': ee.Date(Date.now())
   },
