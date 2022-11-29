@@ -19,6 +19,9 @@ var COLORS = {
 
 var EPSILON = 0.00001;
 
+var START_DATE = '2022-07-01';
+var END_DATE = '2022-11-01';
+
 // Label and text styling
 var LABEL_STYLE = {
     fontFamily: 'sans-serif',
@@ -245,8 +248,8 @@ var SENSOR_DICT = {
       'collection_masked': mergeLandsatMSS()
           .map(maskLandsatMSS)
           .map(scaleLandsatMSS),
-      'start_date': ee.Date('1973-01-01'),
-      'end_date': ee.Date('1974-01-01')
+      'start_date': '1973-01-01',
+      'end_date': '1974-01-01'
   },
   'Landsat 5 - TM SR': {
       'sensor_name': 'Landsat 5 TM SR',
@@ -265,8 +268,8 @@ var SENSOR_DICT = {
       'collection_masked': ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
           .map(scaleLandsatSR)
           .map(maskLandsatSR),
-      'start_date': ee.Date('1985-01-01'),
-      'end_date': ee.Date('1986-01-01')
+      'start_date': '1985-01-01',
+      'end_date': '1986-01-01'
   },
   'Landsat 7 - ETM+ SR': {
       'sensor_name': 'Landsat 7 ETM+ SR',
@@ -285,8 +288,8 @@ var SENSOR_DICT = {
       'collection_masked': ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
           .map(scaleLandsatSR)
           .map(maskLandsatSR),
-      'start_date': ee.Date('2010-01-01'),
-      'end_date': ee.Date('2011-01-01')
+      'start_date': '2010-01-01',
+      'end_date': '2011-01-01'
   },
   'Landsat 8 - OLI SR': {
       'sensor_name': 'Landsat 8 OLI SR',
@@ -306,8 +309,8 @@ var SENSOR_DICT = {
       'collection_masked': ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
           .map(scaleLandsatSR)
           .map(maskLandsatSR),
-      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
-      'end_date': ee.Date(Date.now())
+      'start_date': START_DATE,
+      'end_date': END_DATE
   },
   'Landsat 9 - OLI SR': {
       'sensor_name': 'Landsat 9 OLI SR',
@@ -327,8 +330,8 @@ var SENSOR_DICT = {
       'collection_masked': ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
           .map(scaleLandsatSR)
           .map(maskLandsatSR),
-      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
-      'end_date': ee.Date(Date.now())
+      'start_date': START_DATE,
+      'end_date': END_DATE
   },
   'Landsat Legacy SR': {
       'sensor_name': 'Landsat Legacy SR',
@@ -370,8 +373,8 @@ var SENSOR_DICT = {
               .map(scaleLandsatSR)
               .map(maskLandsatSR)
               .map(legacyNameLandsatOLI)),
-      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
-      'end_date': ee.Date(Date.now())
+      'start_date': START_DATE,
+      'end_date': END_DATE
   },
   'Sentinel-2 - MSI SR': {
       'sensor_name': 'Sentinel-2 MSI SR',
@@ -396,8 +399,8 @@ var SENSOR_DICT = {
       'collection_masked': ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
           .map(scaleS2)
           .map(maskS2SR),
-      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
-      'end_date': ee.Date(Date.now())
+      'start_date': START_DATE,
+      'end_date': END_DATE
   },
   'Sentinel-2 - MSI TOA': {
       'sensor_name': 'Sentinel-2 MSI TOA',
@@ -423,8 +426,8 @@ var SENSOR_DICT = {
       'collection_masked': ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
           .map(scaleS2)
           .map(maskS2TOA),
-      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
-      'end_date': ee.Date(Date.now())
+      'start_date': START_DATE,
+      'end_date': END_DATE
   },
   'MODIS Terra VI (16-day)': {
       'sensor_name': 'MODIS Terra VI (16-day)',
@@ -446,8 +449,8 @@ var SENSOR_DICT = {
         .map(scaleModisSR)
         .map(scaleModisVI)
         .map(maskModisSRVI),
-      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
-      'end_date': ee.Date(Date.now())
+      'start_date': START_DATE,
+      'end_date': END_DATE
   },
   'MODIS Terra SR (8-day)': {
       'sensor_name': 'MODIS Terra SR (8-day)',
@@ -468,8 +471,8 @@ var SENSOR_DICT = {
       'collection_masked': ee.ImageCollection("MODIS/061/MOD09A1")
         .map(scaleModisSR)
         .map(maskModisSR8d),
-      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
-      'end_date': ee.Date(Date.now())
+      'start_date': START_DATE,
+      'end_date': END_DATE
   },
   'MODIS Terra SR (Daily)': {
       'sensor_name': 'MODIS Terra SR (Daily)',
@@ -490,8 +493,8 @@ var SENSOR_DICT = {
       'collection_masked': ee.ImageCollection('MODIS/061/MOD09GA')
         .map(scaleModisSR)
         .map(maskModisSR),
-      'start_date': ee.Date(Date.now()).advance(-1 * HISTORY_DAYS, 'day'),
-      'end_date': ee.Date(Date.now())
+      'start_date': START_DATE,
+      'end_date': END_DATE
       }
 };
 
@@ -610,7 +613,7 @@ function makeVizParams() {
   var blueBand = bandDict[blueSelect.getValue()];
   
   ui.url.set('red', redSelect.getValue());
-    ui.url.set('green', greenSelect.getValue());
+  ui.url.set('green', greenSelect.getValue());
   ui.url.set('blue', blueSelect.getValue());
   
   var rgbList = [redBand, greenBand, blueBand];
@@ -675,14 +678,13 @@ function updateSensor(sensor) {
 
   var curSensorProperties = getSensorProperties();
   var selectKeys = Object.keys(curSensorProperties['band_dict']);
-
-  var collectionMasked = curSensorProperties['collection_masked'];
-  var composite = collectionMasked
-      .filterDate(curSensorProperties['start_date'], curSensorProperties['end_date'])
-      .median();
   
-  var compositeImageLayer = ui.Map.Layer(composite, makeVizParams(), 'composite');
-  map.layers().set(IMAGE_LAYER_INDEX, compositeImageLayer);
+  compositeStartDate.setValue(curSensorProperties['start_date']);
+  compositeEndDate.setValue(curSensorProperties['end_date'])
+
+  updateComposite(curSensorProperties['collection_masked'], 
+      curSensorProperties['start_date'], 
+      curSensorProperties['end_date']);
   
   // Put all the controls to bed, and wake them back up after we've
   // updated the pull-down placeholders and values.
@@ -729,6 +731,7 @@ function updateSensor(sensor) {
 
 sensorSelect.onChange(updateSensor);
 
+
 function updateChart(geoCoords) {
   clearChart();
   var curSensorProperties = getSensorProperties();
@@ -765,44 +768,39 @@ function updateChart(geoCoords) {
       .toList(1e4)
       .map(function(f) {
         return ee.Feature(f).toDictionary();
-      })
-      .evaluate(function(sampledValues) {
-    clearChart();
-
-    var chart = ui.Chart(
-        [['', ''], [0, 0]],
-        'ScatterChart',
-        {
-            title: 'lon, lat: ' + lon.toFixed(COORDS_DECIMAL_PLACES) + 
-                ', ' + lat.toFixed(COORDS_DECIMAL_PLACES),
-            hAxis: {'title': 'date'},
-            vAxis: {'title': curSensorProperties.sensor_name + ' \n spectral magnitude'},
-            pointSize: 4,
-            lineWidth: 0,
-            legend: {'position': 'none'}});
-
-    chart.onClick(function(timeCoords) {
-      if (timeCoords) {
-        var image = curSensorProperties['collection']
-            .filterBounds(clickedPoint)
-            .filterDate(timeCoords)
-            .first();
-        var date = ee.Date(timeCoords).format().split('T').get(0).getInfo();
-        var singleImageLayer = ui.Map.Layer(image, makeVizParams(), date);
-        map.layers().set(IMAGE_LAYER_INDEX, singleImageLayer);
-      }
-      else {
-        var collectionMasked = curSensorProperties['collection_masked'];
-        var composite = collectionMasked
-            .filterDate(curSensorProperties['start_date'], curSensorProperties['end_date'])
-            .median();
-        var compositeImageLayer = ui.Map.Layer(composite, makeVizParams(), 'composite');
-  
-        map.layers().set(IMAGE_LAYER_INDEX, compositeImageLayer)
-      }
+      }).evaluate(function(sampledValues) {
+        clearChart();
+    
+        var chart = ui.Chart(
+            [['', ''], [0, 0]],
+            'ScatterChart',
+            {
+                title: 'lon, lat: ' + lon.toFixed(COORDS_DECIMAL_PLACES) + 
+                    ', ' + lat.toFixed(COORDS_DECIMAL_PLACES),
+                hAxis: {'title': 'date'},
+                vAxis: {'title': curSensorProperties.sensor_name + ' \n spectral magnitude'},
+                pointSize: 4,
+                lineWidth: 0,
+                legend: {'position': 'none'}});
+    
+        chart.onClick(function(timeCoords) {
+          if (timeCoords) {
+            var image = curSensorProperties['collection']
+                .filterBounds(clickedPoint)
+                .filterDate(timeCoords)
+                .first();
+            var date = ee.Date(timeCoords).format().split('T').get(0).getInfo();
+            var singleImageLayer = ui.Map.Layer(image, makeVizParams(), date);
+            map.layers().set(IMAGE_LAYER_INDEX, singleImageLayer);
+          }
+          else {
+            updateComposite(curSensorProperties['collection_masked'], 
+                compositeStartDate.getValue(), 
+                compositeEndDate.getValue());
+          }
     });
 
-    chartPanel.add(chart);
+    chartPanel.add(chart).add(compositeControls)
 
     chartInfo.styleChartFn = function(rgbBandNames, rgbValues) {
       
@@ -971,14 +969,43 @@ chartPanel
     .add(createTextLabel(INSTRUCTIONS_L5))
     .add(createTextLabel(INSTRUCTIONS_L6));
 
-var collectionMasked = initSensorProperties['collection_masked'];
 
-var composite = collectionMasked
-    .filterDate(initSensorProperties['start_date'], initSensorProperties['end_date'])
-    .median();
+var compositeStartDate = ui.Textbox('date1', initSensorProperties['start_date']);
+var compositeEndDate = ui.Textbox('date2', initSensorProperties['end_date']);
 
-var compositeImageLayer = ui.Map.Layer(composite, makeVizParams(), 'composite');
-map.layers().set(IMAGE_LAYER_INDEX, compositeImageLayer);
+var compositeLoadButton = ui.Button({
+    label: 'Load',
+    onClick: function() {
+      var startDate = compositeStartDate.getValue();
+      var endDate = compositeEndDate.getValue();
+      updateComposite(initSensorProperties['collection_masked'], startDate, endDate);
+    }
+});
+
+var compositeControls = ui.Panel({
+    widgets: [
+      createTextLabel('Composite:'),
+      compositeStartDate,
+      createTextLabel('to'),
+      compositeEndDate,
+      compositeLoadButton],
+    layout: ui.Panel.Layout.flow('horizontal'),
+    style: {
+      position: 'bottom-left', 
+      stretch: 'both',
+      backgroundColor: COLORS['black']
+    }});
+
+function updateComposite(collection, start_date, end_date) {
+  var composite = collection
+      .filterDate(start_date, end_date)
+      .median();
+
+  var compositeImageLayer = ui.Map.Layer(composite, makeVizParams(), 'median composite');
+  map.layers().set(IMAGE_LAYER_INDEX, compositeImageLayer);
+}
+
+updateComposite(initSensorProperties['collection_masked'], initSensorProperties['start_date'], initSensorProperties['end_date']);
 
 
 if (ui.url.get('clicked') === true) {
