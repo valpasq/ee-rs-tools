@@ -1,7 +1,7 @@
 // THE EO TIME MACHINE
 // 
 // author: Valerie J. Pasquarella
-// last updated: 2022-11-27
+// last updated: 2022-11-29
 //
 // -----------------------------------------------------------------------------
 
@@ -26,6 +26,7 @@ var END_DATE = '2022-11-01';
 var LABEL_STYLE = {
     fontFamily: 'sans-serif',
     fontWeight: 'bold',
+    fontSize: '14px',
     color: 'white',
     backgroundColor: COLORS.transparent};
 
@@ -227,9 +228,6 @@ function maskModisSRVI(image) {
       .copyProperties(image, ['system:time_start']);
 }
 
-
-// Number of days to include in composite for active sensors.
-var HISTORY_DAYS = 180;
 
 // Main configuration dictionary.
 var SENSOR_DICT = {
@@ -785,6 +783,7 @@ function updateChart(geoCoords) {
     
         chart.onClick(function(timeCoords) {
           if (timeCoords) {
+            ui.url.set('time', timeCoords);
             var image = curSensorProperties['collection']
                 .filterBounds(clickedPoint)
                 .filterDate(timeCoords)
@@ -794,6 +793,7 @@ function updateChart(geoCoords) {
             map.layers().set(IMAGE_LAYER_INDEX, singleImageLayer);
           }
           else {
+            ui.url.set('time', false);
             updateComposite(curSensorProperties['collection_masked'], 
                 compositeStartDate.getValue(), 
                 compositeEndDate.getValue());
@@ -942,34 +942,6 @@ var interfacePanel = ui.Panel({
     height: CONTROL_PANEL_HEIGHT
   }});
 
-ui.root.clear();
-
-interfacePanel.add(controlPanel).add(chartPanel);
-ui.root.add(mainPanel.add(map).add(interfacePanel));
-
-// Initialize chart panel with some basic instructions
-var INSTRUCTIONS_L0 = 'Welcome to the EO Time Machine! Let\'s get started...';
-var INSTRUCTIONS_L1 = '▶ The map displays a cloud-free composite by default.';
-var INSTRUCTIONS_L2 = '▶ Zoom in and click a point on the map to view a time series ' +
-    'of observations for the selected sensor.';
-var INSTRUCTIONS_L3 = '▶ Click a point on the time series chart to load ' +
-    'the corresponding image acquisition.';
-var INSTRUCTIONS_L4 = '▶ Change the selected sensor using the sensor pull-down.';
-var INSTRUCTIONS_L5 = '▶ Change the RGB bands and stretch using the RGB controls.';
-var INSTRUCTIONS_L6 = '▶ To load your own feature collection or point location, ' +
-    'paste the path to the asset or lon, lat (x, y) coordinates in the text box, ' +
-    'then click the Load button.';
-
-chartPanel
-    .add(createLabel(INSTRUCTIONS_L0))
-    .add(createTextLabel(INSTRUCTIONS_L1))
-    .add(createTextLabel(INSTRUCTIONS_L2))
-    .add(createTextLabel(INSTRUCTIONS_L3))
-    .add(createTextLabel(INSTRUCTIONS_L4))
-    .add(createTextLabel(INSTRUCTIONS_L5))
-    .add(createTextLabel(INSTRUCTIONS_L6));
-
-
 var compositeStartDate = ui.Textbox('date1', initSensorProperties['start_date']);
 var compositeEndDate = ui.Textbox('date2', initSensorProperties['end_date']);
 
@@ -1005,7 +977,45 @@ function updateComposite(collection, start_date, end_date) {
   map.layers().set(IMAGE_LAYER_INDEX, compositeImageLayer);
 }
 
-updateComposite(initSensorProperties['collection_masked'], initSensorProperties['start_date'], initSensorProperties['end_date']);
+if (ui.url.get('time') > 0) {
+    var image = initSensorProperties['collection']
+        .filterBounds(ee.Geometry.Point(ui.url.get('lon'), ui.url.get('lat')))
+        .filterDate(ui.url.get('time'))
+        .first();
+    var date = ee.Date(ui.url.get('time')).format().split('T').get(0).getInfo();
+    var singleImageLayer = ui.Map.Layer(image, makeVizParams(), date);
+    map.layers().set(IMAGE_LAYER_INDEX, singleImageLayer);
+}
+else {
+    updateComposite(initSensorProperties['collection_masked'], initSensorProperties['start_date'], initSensorProperties['end_date']);
+}
+
+ui.root.clear();
+
+interfacePanel.add(controlPanel).add(chartPanel);
+ui.root.add(mainPanel.add(map).add(interfacePanel));
+
+// Initialize chart panel with some basic instructions
+var INSTRUCTIONS_L0 = 'Welcome to the EO Time Machine! Let\'s get started...';
+var INSTRUCTIONS_L1 = '▶ The map displays a cloud-free composite by default.';
+var INSTRUCTIONS_L2 = '▶ Zoom in and click a point on the map to view a time series ' +
+    'of observations for the selected sensor.';
+var INSTRUCTIONS_L3 = '▶ Click a point on the time series chart to load ' +
+    'the corresponding image acquisition.';
+var INSTRUCTIONS_L4 = '▶ Change the selected sensor using the sensor pull-down.';
+var INSTRUCTIONS_L5 = '▶ Change the RGB bands and stretch using the RGB controls.';
+var INSTRUCTIONS_L6 = '▶ To load your own feature collection or point location, ' +
+    'paste the path to the asset or lon, lat (x, y) coordinates in the text box, ' +
+    'then click the Load button.';
+
+chartPanel
+    .add(createLabel(INSTRUCTIONS_L0))
+    .add(createTextLabel(INSTRUCTIONS_L1))
+    .add(createTextLabel(INSTRUCTIONS_L2))
+    .add(createTextLabel(INSTRUCTIONS_L3))
+    .add(createTextLabel(INSTRUCTIONS_L4))
+    .add(createTextLabel(INSTRUCTIONS_L5))
+    .add(createTextLabel(INSTRUCTIONS_L6));
 
 
 if (ui.url.get('clicked') === true) {
