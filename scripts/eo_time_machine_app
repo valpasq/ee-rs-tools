@@ -1,5 +1,3 @@
-// THE EO TIME MACHINE
-// 
 // author: Valerie J. Pasquarella
 // last updated: 2022-11-29
 //
@@ -493,6 +491,29 @@ var SENSOR_DICT = {
         .map(maskModisSR),
       'start_date': START_DATE,
       'end_date': END_DATE
+      },
+  'Sentinel-1 GRD FLOAT': {
+      'sensor_name': 'Sentinel-1 GRD',
+      'band_dict': {
+        'VH': 'VH',
+        'VV': 'VV',
+        'VH-VV': 'VH-VV'
+      },
+      'red_default': 'VH',
+      'green_default': 'VV',
+      'blue_default': 'VH-VV',
+      'collection': ee.ImageCollection('COPERNICUS/S1_GRD_FLOAT')
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))
+        .filter(ee.Filter.eq('instrumentMode', 'IW'))
+        .map(function(img) {return img.addBands(img.select('VH').divide(img.select('VV')).rename('VH-VV'))}),
+      'collection_masked': ee.ImageCollection('COPERNICUS/S1_GRD_FLOAT')
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))
+        .filter(ee.Filter.eq('instrumentMode', 'IW'))
+        .map(function(img) {return img.addBands(img.select('VH').divide(img.select('VV')).rename('VH-VV'))}),
+      'start_date': START_DATE,
+      'end_date': END_DATE
       }
 };
 
@@ -946,7 +967,7 @@ var compositeStartDate = ui.Textbox('date1', initSensorProperties['start_date'])
 var compositeEndDate = ui.Textbox('date2', initSensorProperties['end_date']);
 
 var compositeLoadButton = ui.Button({
-    label: 'Load',
+    label: 'Generate Composite',
     onClick: function() {
       var startDate = compositeStartDate.getValue();
       var endDate = compositeEndDate.getValue();
@@ -956,7 +977,6 @@ var compositeLoadButton = ui.Button({
 
 var compositeControls = ui.Panel({
     widgets: [
-      createTextLabel('Composite:'),
       compositeStartDate,
       createTextLabel('to'),
       compositeEndDate,
