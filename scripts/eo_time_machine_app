@@ -497,11 +497,11 @@ var SENSOR_DICT = {
       'band_dict': {
         'VH': 'VH',
         'VV': 'VV',
-        'VH-VV': 'VH-VV'
+        'VH/VV': 'VH/VV'
       },
       'red_default': 'VH',
       'green_default': 'VV',
-      'blue_default': 'VH-VV',
+      'blue_default': 'VH/VV',
       'collection': ee.ImageCollection('COPERNICUS/S1_GRD_FLOAT')
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))
@@ -511,7 +511,7 @@ var SENSOR_DICT = {
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))
         .filter(ee.Filter.eq('instrumentMode', 'IW'))
-        .map(function(img) {return img.addBands(img.select('VH').divide(img.select('VV')).rename('VH-VV'))}),
+        .map(function(img) {return img.addBands(img.select('VH').divide(img.select('VV')).rename('VH/VV'))}),
       'start_date': START_DATE,
       'end_date': END_DATE
       }
