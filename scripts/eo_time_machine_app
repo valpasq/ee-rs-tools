@@ -1,5 +1,5 @@
 // author: Valerie J. Pasquarella
-// last updated: 2022-11-29
+// last updated: 2022-12-02
 //
 // -----------------------------------------------------------------------------
 
@@ -7,7 +7,7 @@
 
 var COLORS = {
     'transparent': '#11ffee00', 
-    'gray': '#f8f9fA', 
+    'gray': '#f8f9fA',
     'dark': '#302020', 
     'black': '#000000',
     'faded': '#ffffff75',
@@ -46,7 +46,7 @@ function zeroWhenSet(image, bitList) {
 }
 
 
-function legacyNameLandsat4(image) {
+function legacyNameLandsat45(image) {
   return image
     .select(['B1', 'B2', 'B3', 'B4'])
     .rename(['B4', 'B5', 'B6', 'B7'])
@@ -78,11 +78,13 @@ function mergeLandsatMSS() {
   var tier1 = ee.ImageCollection('LANDSAT/LM01/C02/T1')
           .merge(ee.ImageCollection('LANDSAT/LM02/C02/T1'))
           .merge(ee.ImageCollection('LANDSAT/LM03/C02/T1'))
-          .merge(ee.ImageCollection('LANDSAT/LM04/C02/T1').map(legacyNameLandsat4))
+          .merge(ee.ImageCollection('LANDSAT/LM04/C02/T1').map(legacyNameLandsat45))
+          .merge(ee.ImageCollection('LANDSAT/LM05/C02/T1').map(legacyNameLandsat45))
   var tier2 = ee.ImageCollection('LANDSAT/LM01/C02/T2')
           .merge(ee.ImageCollection('LANDSAT/LM02/C02/T2'))
           .merge(ee.ImageCollection('LANDSAT/LM03/C02/T2'))
-          .merge(ee.ImageCollection('LANDSAT/LM04/C02/T2').map(legacyNameLandsat4))
+          .merge(ee.ImageCollection('LANDSAT/LM04/C02/T2').map(legacyNameLandsat45))
+          .merge(ee.ImageCollection('LANDSAT/LM05/C02/T2').map(legacyNameLandsat45))
 
   return tier1.merge(tier2)
           
@@ -229,8 +231,8 @@ function maskModisSRVI(image) {
 
 // Main configuration dictionary.
 var SENSOR_DICT = {
-  'Landsat 1-4 - MSS Raw': {
-      'sensor_name': 'Landsat 1-4 MSS Raw',
+  'Landsat 1-5 - MSS Raw': {
+      'sensor_name': 'Landsat 1-5 MSS Raw',
       'band_dict': {
         'B4 - Green': 'B4',
         'B5 - Red': 'B5',
@@ -492,8 +494,8 @@ var SENSOR_DICT = {
       'start_date': START_DATE,
       'end_date': END_DATE
       },
-  'Sentinel-1 GRD FLOAT': {
-      'sensor_name': 'Sentinel-1 GRD',
+  'Sentinel-1 GRD Raw': {
+      'sensor_name': 'Sentinel-1 GRD Raw',
       'band_dict': {
         'VH': 'VH',
         'VV': 'VV',
@@ -506,7 +508,7 @@ var SENSOR_DICT = {
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))
         .filter(ee.Filter.eq('instrumentMode', 'IW'))
-        .map(function(img) {return img.addBands(img.select('VH').divide(img.select('VV')).rename('VH-VV'))}),
+        .map(function(img) {return img.addBands(img.select('VH').divide(img.select('VV')).rename('VH/VV'))}),
       'collection_masked': ee.ImageCollection('COPERNICUS/S1_GRD_FLOAT')
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
         .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))
@@ -692,7 +694,9 @@ blueSlider.onChange(updateViz);
 
 // Change sensor properties.
 function updateSensor(sensor) {
-  clearChart();
+  if (chartInfo.styleChartFn !== undefined) {
+    clearChart();
+  }
   ui.url.set('sensor', sensor);
 
   var curSensorProperties = getSensorProperties();
