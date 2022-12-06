@@ -973,9 +973,10 @@ var compositeEndDate = ui.Textbox('date2', initSensorProperties['end_date']);
 var compositeLoadButton = ui.Button({
     label: 'Generate Composite',
     onClick: function() {
+      var curSensorProperties = getSensorProperties();
       var startDate = compositeStartDate.getValue();
       var endDate = compositeEndDate.getValue();
-      updateComposite(initSensorProperties['collection_masked'], startDate, endDate);
+      updateComposite(curSensorProperties['collection_masked'], startDate, endDate);
     }
 });
 
