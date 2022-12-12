@@ -883,7 +883,6 @@ var assetLoadButton = ui.Button({
     var assetPath = assetTextbox.getValue();
     
     // If input string contains '/', interpret as a path
-    if (assetPath.indexOf('/') >= 0) {
     if (assetPath.indexOf('/') != -1) {
       var asset = ee.FeatureCollection(assetPath)
         .style({color: 'crimson', fillColor: '00000000'});
