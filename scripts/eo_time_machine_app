@@ -884,6 +884,7 @@ var assetLoadButton = ui.Button({
     
     // If input string contains '/', interpret as a path
     if (assetPath.indexOf('/') >= 0) {
+    if (assetPath.indexOf('/') != -1) {
       var asset = ee.FeatureCollection(assetPath)
         .style({color: 'crimson', fillColor: '00000000'});
       var assetLayer = ui.Map.Layer(asset, {}, 'feature collection');
@@ -892,9 +893,10 @@ var assetLoadButton = ui.Button({
     
     // Else if string contains decimal point and comma, interpret
     // as coordinates
-    } else if ((assetPath.indexOf('.') >=0) & (assetPath.indexOf(',') >=0)) {
-      var lon = Number(assetPath.split(', ')[0]);
-      var lat = Number(assetPath.split(', ')[1]);
+    } else if ((assetPath.indexOf('.') >=0) && (assetPath.indexOf(',') >=0)) {
+      var coords = assetPath.split(', ');
+      var lon = Number(coords[0]);
+      var lat = Number(coords[1]);
       
       var point = ee.Geometry.Point([lon, lat]);
       var pointLayer = ui.Map.Layer(point, {color: 'crimson'}, 'point');
@@ -921,6 +923,14 @@ var mainPanel = ui.Panel({
     backgroundColor: COLORS['black']
   }});
 
+
+var linkToGitHub = createTextLabel('ℹ️')
+    .setUrl('https://github.com/valpasq/ee-rs-tools');
+linkToGitHub.style().set({
+    stretch: 'horizontal',
+    textAlign: 'right',
+    fontSize: '24px'});
+
 var sensorPanel = ui.Panel({
   widgets: [
     createPanel([createLabel('⚫️ '), sensorSelect])],
@@ -944,7 +954,7 @@ var rgbPanel = ui.Panel({
   }});
   
 var loadAssetPanel = ui.Panel({
-  widgets: [assetLabel, assetTextbox, assetLoadButton],
+  widgets: [assetLabel, assetTextbox, assetLoadButton, linkToGitHub],
   layout: ui.Panel.Layout.Flow('horizontal'),
   style: {
     backgroundColor: COLORS['transparent'],
@@ -979,7 +989,7 @@ var compositeLoadButton = ui.Button({
       updateComposite(curSensorProperties['collection_masked'], startDate, endDate);
     }
 });
-
+    
 var compositeControls = ui.Panel({
     widgets: [
       compositeStartDate,
