@@ -249,6 +249,26 @@ var SENSOR_DICT = {
       'start_date': '1973-01-01',
       'end_date': '1974-01-01'
   },
+  'Landsat 4 - TM SR': {
+      'sensor_name': 'Landsat 4 TM SR',
+      'band_dict': {
+        'B1 - Blue': 'SR_B1',
+        'B2 - Green': 'SR_B2',
+        'B3 - Red': 'SR_B3',
+        'B4 - NIR': 'SR_B4',
+        'B5 - SWIR 1': 'SR_B5',
+        'B7 - SWIR 2': 'SR_B7'},
+      'red_default': 'B3 - Red',
+      'green_default': 'B2 - Green',
+      'blue_default': 'B1 - Blue',
+      'collection': ee.ImageCollection('LANDSAT/LT04/C02/T1_L2')
+          .map(scaleLandsatSR),
+      'collection_masked': ee.ImageCollection('LANDSAT/LT04/C02/T1_L2')
+          .map(scaleLandsatSR)
+          .map(maskLandsatSR),
+      'start_date': '1983-01-01',
+      'end_date': '1984-01-01'
+  },
   'Landsat 5 - TM SR': {
       'sensor_name': 'Landsat 5 TM SR',
       'band_dict': {
@@ -343,26 +363,33 @@ var SENSOR_DICT = {
       'red_default': 'Red',
       'green_default': 'Green',
       'blue_default': 'Blue',
-      'collection': ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
-          .map(scaleLandsatSR)
-          .map(legacyNameLandsatTM)
+      'collection': ee.ImageCollection('LANDSAT/LT04/C02/T1_L2')
+              .map(scaleLandsatSR)
+              .map(legacyNameLandsatTM)
+          .merge(ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
+              .map(scaleLandsatSR)
+              .map(legacyNameLandsatTM))
           .merge(ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
-            .map(scaleLandsatSR)
-            .map(legacyNameLandsatETM))
+              .map(scaleLandsatSR)
+              .map(legacyNameLandsatETM))
           .merge(ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
-            .map(scaleLandsatSR)
-            .map(legacyNameLandsatOLI))
+              .map(scaleLandsatSR)
+              .map(legacyNameLandsatOLI))
           .merge(ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
-            .map(scaleLandsatSR)
-            .map(legacyNameLandsatOLI)),
-      'collection_masked': ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
-          .map(scaleLandsatSR)
-          .map(maskLandsatSR)
-          .map(legacyNameLandsatTM)
+              .map(scaleLandsatSR)
+              .map(legacyNameLandsatOLI)),
+      'collection_masked': ee.ImageCollection('LANDSAT/LT04/C02/T1_L2')
+              .map(scaleLandsatSR)
+              .map(maskLandsatSR)
+              .map(legacyNameLandsatTM)
+          .merge(ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
+              .map(scaleLandsatSR)
+              .map(maskLandsatSR)
+              .map(legacyNameLandsatTM))
           .merge(ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
-            .map(scaleLandsatSR)
-            .map(maskLandsatSR)
-            .map(legacyNameLandsatETM))
+              .map(scaleLandsatSR)
+              .map(maskLandsatSR)
+              .map(legacyNameLandsatETM))
           .merge(ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
               .map(scaleLandsatSR)
               .map(maskLandsatSR)
